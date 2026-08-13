@@ -1,0 +1,5 @@
+packages:
+  - "compiler"
+  - "agent"
+  - "verifier"
+  - "dashboard"

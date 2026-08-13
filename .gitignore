@@ -1,0 +1,20 @@
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Rust / Anchor
+target/
+.anchor/
+test-ledger/
+
+# Env
+.env
+
+# Wallets — never commit private keys, only the pubkey manifest
+wallets/*.json
+!wallets/manifest.json
+
+# OS
+.DS_Store
+Thumbs.db
