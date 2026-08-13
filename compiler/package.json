@@ -1,0 +1,12 @@
+{
+  "name": "@ashlar/compiler",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Turns a plain-English or structured instruction into a fixed, compiled step sequence.",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
