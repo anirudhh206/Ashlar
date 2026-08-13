@@ -1,0 +1,12 @@
+{
+  "name": "@ashlar/agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AI reasoning layer that interprets live triggers and instructions. Explicitly stripped of signing authority — its judgment is advisory only.",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
