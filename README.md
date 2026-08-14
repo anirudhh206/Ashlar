@@ -113,6 +113,32 @@ Prints the transaction signature and a devnet Explorer link.
 - [x] Devnet wallets generated
 - [x] Hello-world program deployed to devnet and called successfully
 
+## Phase 1 status
+
+- [x] Compiler templates defined: `recurring-conditional-payment`, `one-time-approval-gated-transfer`
+- [x] Rule-based parser extracts parameters and produces a fixed step sequence per template
+- [x] Two different instructions produce two differently-structured step sequences (`pnpm test:compiler`)
+
+## Phase 2 status
+
+- [x] Policy Engine instructions: `initialize_workflow`, `fetch_step`, `compliance_check`,
+      `manual_approval`, `guardrail_check`, `mock_settlement` — enforce the compiled step
+      sequence in order, reject out-of-order calls
+- [x] Step Attestation Registry: one `Attestation` PDA per step (regular Anchor PDAs for now —
+      real Light Protocol ZK Compression deferred, see below)
+- [x] Accounting Ledger: one append-only `Ledger` PDA per workflow, readable as a single account
+- [x] `tests/policy-engine.ts` — happy path for both workflow types, guardrail rejection, approval
+      rejection, out-of-order rejection (`pnpm test:anchor`, run from WSL via `anchor test`)
+- [x] `scripts/devnet/deploy-workflow.ts` bridges `@ashlar/compiler` output into a real on-chain
+      workflow and walks it through all 4 gates on devnet (`pnpm deploy-workflow ["<instruction>"]`)
+
+**Deferred:** the Attestation Registry and Ledger use regular rent-paying Anchor PDA accounts, not
+Light Protocol's ZK Compression. Compression is a materially larger integration (light-sdk on the
+program side, stateless.js + a compression-aware indexer on the client side) with no existing
+integration in this repo; deferred to a later hardening pass, same as Squads was deferred to
+Phase 4. Settlement is mocked (a plain lamport transfer from a per-workflow vault PDA standing in
+for a stablecoin unit) — real x402/stablecoin settlement is Phase 5.
+
 ## Note on Anchor version
 
 This repo uses Anchor CLI 1.1.2 (via WSL2's `avm`), which differs from the 0.30.1-era project
@@ -128,3 +154,14 @@ program binary still deploys successfully; only the on-chain IDL publish step is
 Workaround: none needed for now — `scripts/devnet/call-hello-world.ts` loads the IDL from the
 local `target/idl/ashlar.json` file rather than fetching it on-chain. Revisit if a later phase
 needs the IDL to be publicly fetchable on-chain.
+
+`anchor test`'s own mocha runner also fails with `ANCHOR_PROVIDER_URL is not defined`, even though
+the variable is set — `npx` inside WSL resolves to Windows' native `npx.cmd` (Node isn't installed
+in WSL, see the dev-environment split above), and env vars set in the WSL shell don't cross that
+interop boundary into the spawned Windows process. Workaround: after `anchor build`/`anchor deploy`
+finish in WSL, run the actual test/mocha step from the **Windows** side instead:
+```powershell
+$env:ANCHOR_PROVIDER_URL = "https://api.devnet.solana.com"
+$env:ANCHOR_WALLET = "wallets/business-owner.json"
+npx ts-mocha -p ./tsconfig.json -t 1000000 "tests/**/*.ts"
+```

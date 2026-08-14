@@ -1,15 +1,10 @@
 /**
  * Phase 3 — AI Agent Reasoning Layer.
  *
- * Interprets live triggers and instructions, integrating Solana Agent Kit to
- * call real on-chain actions (read invoice data, call the Policy Engine's
- * next-step instruction). Explicitly stripped of signing authority: its
- * output can only ever be "call the next compiled instruction" — never
- * "construct and sign an arbitrary transaction." This is the design choice
- * that makes the security story true, not just claimed.
- *
- * Status: not yet implemented (Phase 3).
+ * Interprets live triggers and drives a compiled workflow from trigger to completion using a
+ * Claude tool-use loop, explicitly stripped of signing authority: its output can only ever be
+ * one of a handful of named, typed tool calls (see ./tools.ts) — never "construct and sign an
+ * arbitrary transaction." All guardrail enforcement lives on-chain (programs/ashlar), not here;
+ * this package's judgment is advisory only.
  */
-export function driveWorkflow(_workflowId: string): never {
-  throw new Error('driveWorkflow is not yet implemented (Phase 3)');
-}
+export { driveWorkflow } from './driveWorkflow.js';

@@ -9,7 +9,9 @@
     "format": "prettier --write .",
     "generate-wallets": "tsx scripts/devnet/generate-wallets.ts",
     "hello-world": "tsx scripts/devnet/call-hello-world.ts",
-    "test:anchor": "npx ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
+    "deploy-workflow": "tsx scripts/devnet/deploy-workflow.ts",
+    "test:anchor": "npx ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\"",
+    "test:compiler": "pnpm --filter @ashlar/compiler test"
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",
@@ -27,6 +29,7 @@
   },
   "dependencies": {
     "@anchor-lang/core": "^1.1.2",
+    "@anthropic-ai/sdk": "^0.117.1",
     "@solana/web3.js": "^1.98.0"
   }
 }
