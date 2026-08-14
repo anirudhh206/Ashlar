@@ -1,0 +1,12 @@
+{
+  "name": "@ashlar/verifier",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone tool that independently re-validates a workflow's proof chain directly against the ledger, with no login and no trust in Ashlar's own systems required.",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

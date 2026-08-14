@@ -1,0 +1,30 @@
+{
+  "network": "devnet",
+  "wallets": [
+    {
+      "role": "business-owner",
+      "pubkey": "Fqqm7w8iWkmf9RYDbiQVwVSdAKkziFjqfG5Cn28CVNjQ",
+      "file": "wallets/business-owner.json",
+      "createdAt": "2026-08-13T21:34:02.835Z"
+    },
+    {
+      "role": "treasury-placeholder",
+      "pubkey": "HH1vAUPGCbpSy3Y7qRvHdJ68cZsgn4o3KDZxKDEe1HP7",
+      "file": "wallets/treasury-placeholder.json",
+      "createdAt": "2026-08-13T21:34:11.552Z",
+      "note": "stand-in until Squads multisig (Phase 4)"
+    },
+    {
+      "role": "test-vendor",
+      "pubkey": "FzSqgts4TMkocmv93GM7fRdtTVcC3Kx5Vs8aSUuzYzHw",
+      "file": "wallets/test-vendor.json",
+      "createdAt": "2026-08-13T21:34:20.501Z"
+    },
+    {
+      "role": "adversarial",
+      "pubkey": "7HER9hihU84k6eaBv6dvVGrcE72QU5ZBbXqMfHE6M7p8",
+      "file": "wallets/adversarial.json",
+      "createdAt": "2026-08-13T21:34:29.412Z"
+    }
+  ]
+}

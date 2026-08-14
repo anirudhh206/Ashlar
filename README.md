@@ -97,6 +97,9 @@ anchor build
 anchor deploy --provider.cluster devnet
 ```
 
+Program ID: `7AESNgNKweEEveyb4vnuTpKALzjDhupFauAfgSc97z7t` (also set in `Anchor.toml`
+`[programs.devnet]`).
+
 ### Call it (Windows)
 
 ```powershell
@@ -106,12 +109,22 @@ Prints the transaction signature and a devnet Explorer link.
 
 ## Phase 0 status
 
-- [x] Repo scaffolded (this commit)
-- [ ] Devnet wallets generated
-- [ ] Hello-world program deployed to devnet and called successfully
+- [x] Repo scaffolded
+- [x] Devnet wallets generated
+- [x] Hello-world program deployed to devnet and called successfully
 
 ## Note on Anchor version
 
 This repo uses Anchor CLI 1.1.2 (via WSL2's `avm`), which differs from the 0.30.1-era project
 layout assumed by a lot of older Anchor documentation and examples (IDL format, `Anchor.toml`
-`[toolchain]` section). Keep this in mind when consulting outside references in later phases.
+`[toolchain]` section, npm package `@anchor-lang/core` instead of `@coral-xyz/anchor`). Keep this
+in mind when consulting outside references in later phases.
+
+`anchor deploy` on this CLI version also attempts to publish the IDL on-chain via `anchor idl
+init`. That sub-step currently fails on this fork with a misleading `Keypair file not found`
+error even though the same wallet path works for the deploy itself and for `solana address -k`
+— likely a bug in this fork's wallet-loading code path for the `idl` subcommand specifically. The
+program binary still deploys successfully; only the on-chain IDL publish step is affected.
+Workaround: none needed for now — `scripts/devnet/call-hello-world.ts` loads the IDL from the
+local `target/idl/ashlar.json` file rather than fetching it on-chain. Revisit if a later phase
+needs the IDL to be publicly fetchable on-chain.
