@@ -1,0 +1,1143 @@
+{
+  "address": "7AESNgNKweEEveyb4vnuTpKALzjDhupFauAfgSc97z7t",
+  "metadata": {
+    "name": "ashlar",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "compliance_check",
+      "discriminator": [
+        184,
+        237,
+        214,
+        94,
+        122,
+        250,
+        220,
+        176
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "workflow"
+          ]
+        },
+        {
+          "name": "workflow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  111,
+                  114,
+                  107,
+                  102,
+                  108,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "workflow_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "attestation",
+          "writable": true
+        },
+        {
+          "name": "ledger",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  100,
+                  103,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "workflow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "workflow_id",
+          "type": "u64"
+        },
+        {
+          "name": "approved",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "fetch_step",
+      "discriminator": [
+        160,
+        40,
+        7,
+        165,
+        161,
+        203,
+        45,
+        173
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "workflow"
+          ]
+        },
+        {
+          "name": "workflow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  111,
+                  114,
+                  107,
+                  102,
+                  108,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "workflow_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "attestation",
+          "writable": true
+        },
+        {
+          "name": "ledger",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  100,
+                  103,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "workflow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "workflow_id",
+          "type": "u64"
+        },
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "guardrail_check",
+      "discriminator": [
+        58,
+        196,
+        152,
+        233,
+        80,
+        137,
+        159,
+        211
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "workflow"
+          ]
+        },
+        {
+          "name": "workflow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  111,
+                  114,
+                  107,
+                  102,
+                  108,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "workflow_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "attestation",
+          "writable": true
+        },
+        {
+          "name": "ledger",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  100,
+                  103,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "workflow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "workflow_id",
+          "type": "u64"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "recipient",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "increment",
+      "discriminator": [
+        11,
+        18,
+        104,
+        9,
+        104,
+        174,
+        59,
+        33
+      ],
+      "accounts": [
+        {
+          "name": "counter",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  117,
+                  110,
+                  116,
+                  101,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "counter",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  117,
+                  110,
+                  116,
+                  101,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_workflow",
+      "discriminator": [
+        9,
+        226,
+        202,
+        241,
+        194,
+        97,
+        181,
+        111
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "workflow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  111,
+                  114,
+                  107,
+                  102,
+                  108,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "workflow_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ledger",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  100,
+                  103,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "workflow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "workflow_id",
+          "type": "u64"
+        },
+        {
+          "name": "workflow_type",
+          "type": {
+            "defined": {
+              "name": "WorkflowType"
+            }
+          }
+        },
+        {
+          "name": "spend_cap",
+          "type": "u64"
+        },
+        {
+          "name": "allowlist",
+          "type": {
+            "vec": "pubkey"
+          }
+        }
+      ]
+    },
+    {
+      "name": "manual_approval",
+      "discriminator": [
+        187,
+        24,
+        240,
+        60,
+        40,
+        205,
+        100,
+        222
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "workflow"
+          ]
+        },
+        {
+          "name": "workflow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  111,
+                  114,
+                  107,
+                  102,
+                  108,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "workflow_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "attestation",
+          "writable": true
+        },
+        {
+          "name": "ledger",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  100,
+                  103,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "workflow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "workflow_id",
+          "type": "u64"
+        },
+        {
+          "name": "approved",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "mock_settlement",
+      "discriminator": [
+        175,
+        136,
+        138,
+        237,
+        3,
+        99,
+        243,
+        139
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "workflow"
+          ]
+        },
+        {
+          "name": "workflow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  111,
+                  114,
+                  107,
+                  102,
+                  108,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "workflow_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "attestation",
+          "writable": true
+        },
+        {
+          "name": "ledger",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  100,
+                  103,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "workflow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "workflow_id",
+          "type": "u64"
+        },
+        {
+          "name": "settlement_reference",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "resume_after_override",
+      "discriminator": [
+        195,
+        175,
+        152,
+        199,
+        208,
+        38,
+        71,
+        12
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "workflow"
+          ]
+        },
+        {
+          "name": "workflow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  111,
+                  114,
+                  107,
+                  102,
+                  108,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "workflow_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "attestation",
+          "writable": true
+        },
+        {
+          "name": "ledger",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  100,
+                  103,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "workflow"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "workflow_id",
+          "type": "u64"
+        },
+        {
+          "name": "approved",
+          "type": "bool"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Attestation",
+      "discriminator": [
+        152,
+        125,
+        183,
+        86,
+        36,
+        146,
+        121,
+        73
+      ]
+    },
+    {
+      "name": "Counter",
+      "discriminator": [
+        255,
+        176,
+        4,
+        245,
+        188,
+        253,
+        124,
+        25
+      ]
+    },
+    {
+      "name": "Ledger",
+      "discriminator": [
+        43,
+        41,
+        21,
+        213,
+        180,
+        176,
+        95,
+        32
+      ]
+    },
+    {
+      "name": "WorkflowInstance",
+      "discriminator": [
+        243,
+        11,
+        247,
+        11,
+        92,
+        193,
+        11,
+        198
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "Only the counter authority can update this counter"
+    },
+    {
+      "code": 6001,
+      "name": "CounterOverflow",
+      "msg": "Counter has reached the maximum value"
+    },
+    {
+      "code": 6002,
+      "name": "OutOfOrderStep",
+      "msg": "This step was called out of order for the workflow's compiled step sequence"
+    },
+    {
+      "code": 6003,
+      "name": "WorkflowNotInProgress",
+      "msg": "Workflow is not in progress (already completed or rejected)"
+    },
+    {
+      "code": 6004,
+      "name": "AllowlistTooLarge",
+      "msg": "Allowlist exceeds the maximum of 4 entries"
+    },
+    {
+      "code": 6005,
+      "name": "NotPendingOverride",
+      "msg": "Workflow is not paused awaiting an owner override"
+    }
+  ],
+  "types": [
+    {
+      "name": "Attestation",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "workflow",
+            "type": "pubkey"
+          },
+          {
+            "name": "step_index",
+            "type": "u8"
+          },
+          {
+            "name": "step_kind",
+            "type": {
+              "defined": {
+                "name": "StepKind"
+              }
+            }
+          },
+          {
+            "name": "executed_by",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "outcome",
+            "type": {
+              "defined": {
+                "name": "AttestationOutcome"
+              }
+            }
+          },
+          {
+            "name": "data_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AttestationOutcome",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Passed"
+          },
+          {
+            "name": "Failed"
+          },
+          {
+            "name": "Executed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Counter",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "count",
+            "type": "u64"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ledger",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "workflow",
+            "type": "pubkey"
+          },
+          {
+            "name": "entries",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "LedgerEntry"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "LedgerEntry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "step_index",
+            "type": "u8"
+          },
+          {
+            "name": "step_kind",
+            "type": {
+              "defined": {
+                "name": "StepKind"
+              }
+            }
+          },
+          {
+            "name": "outcome",
+            "type": {
+              "defined": {
+                "name": "AttestationOutcome"
+              }
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StepKind",
+      "docs": [
+        "The fixed gate sequence a compiled workflow enforces, in order. Mirrors",
+        "`@ashlar/compiler`'s step vocabulary (`attestation`/`ledger_write` are implicit side",
+        "effects of each of these on-chain, not separate steps here)."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Fetch"
+          },
+          {
+            "name": "ComplianceCheck"
+          },
+          {
+            "name": "ManualApproval"
+          },
+          {
+            "name": "GuardrailCheck"
+          },
+          {
+            "name": "MockSettlement"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WorkflowInstance",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "workflow_id",
+            "type": "u64"
+          },
+          {
+            "name": "workflow_type",
+            "type": {
+              "defined": {
+                "name": "WorkflowType"
+              }
+            }
+          },
+          {
+            "name": "steps",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "StepKind"
+                }
+              }
+            }
+          },
+          {
+            "name": "current_step",
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "WorkflowStatus"
+              }
+            }
+          },
+          {
+            "name": "spend_cap",
+            "type": "u64"
+          },
+          {
+            "name": "allowlist",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "pending_amount",
+            "type": "u64"
+          },
+          {
+            "name": "pending_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WorkflowStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "InProgress"
+          },
+          {
+            "name": "Completed"
+          },
+          {
+            "name": "Rejected"
+          },
+          {
+            "name": "PendingOverrideApproval"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WorkflowType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "RecurringConditionalPayment"
+          },
+          {
+            "name": "OneTimeApprovalGatedTransfer"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "ATTESTATION_SEED",
+      "type": "bytes",
+      "value": "[97, 116, 116, 101, 115, 116, 97, 116, 105, 111, 110]"
+    },
+    {
+      "name": "COUNTER_SEED",
+      "type": "bytes",
+      "value": "[99, 111, 117, 110, 116, 101, 114]"
+    },
+    {
+      "name": "HELLO_WORLD_LAMPORTS",
+      "type": "u64",
+      "value": "1"
+    },
+    {
+      "name": "LEDGER_SEED",
+      "type": "bytes",
+      "value": "[108, 101, 100, 103, 101, 114]"
+    },
+    {
+      "name": "MAX_COUNT",
+      "type": "u64",
+      "value": "10"
+    },
+    {
+      "name": "WORKFLOW_SEED",
+      "type": "bytes",
+      "value": "[119, 111, 114, 107, 102, 108, 111, 119]"
+    }
+  ]
+}

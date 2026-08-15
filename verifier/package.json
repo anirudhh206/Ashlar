@@ -8,5 +8,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@anchor-lang/core": "^1.1.2",
+    "@solana/web3.js": "^1.98.4",
+    "js-sha3": "^0.13.0"
   }
 }

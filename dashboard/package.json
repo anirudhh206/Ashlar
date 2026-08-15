@@ -4,9 +4,22 @@
   "private": true,
   "type": "module",
   "description": "Live public dashboard streaming step attestations in real time as they land on-chain.",
-  "main": "src/index.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dashboard-server": "tsx server/relay.ts"
+  },
+  "dependencies": {
+    "@anchor-lang/core": "^1.1.2",
+    "@solana/web3.js": "^1.98.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "vite": "^8.2.1"
   }
 }

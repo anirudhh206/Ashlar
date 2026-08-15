@@ -1,0 +1,25 @@
+{
+  "mandate": {
+    "version": "ap2-mandate-v1",
+    "workflowId": "1786795180381",
+    "intent": {
+      "description": "Split settlement for workflow 1786795180381"
+    },
+    "cart": {
+      "totalAmountUsdc": "5000516",
+      "currency": "USDC",
+      "splits": {
+        "vendor": "4250438",
+        "taxReserve": "500051",
+        "yieldPool": "250027"
+      }
+    },
+    "payment": {
+      "payer": "Fqqm7w8iWkmf9RYDbiQVwVSdAKkziFjqfG5Cn28CVNjQ",
+      "vendorRecipient": "FzSqgts4TMkocmv93GM7fRdtTVcC3Kx5Vs8aSUuzYzHw",
+      "createdAt": "2026-08-15T11:59:44.291Z"
+    }
+  },
+  "signature": "Ed2AmIlz8b5wfuJ1K22JFwU2q6vqzZSYFTRLvbf7gekz5tgXwUjaAVmiLKbPijML2UCQGX2DZjJIrKcSWfBKCg==",
+  "signer": "Fqqm7w8iWkmf9RYDbiQVwVSdAKkziFjqfG5Cn28CVNjQ"
+}

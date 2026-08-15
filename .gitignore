@@ -3,8 +3,16 @@ node_modules/
 dist/
 *.tsbuildinfo
 
-# Rust / Anchor
-target/
+# Rust / Anchor — target/ is otherwise all build output, but the generated IDL and TS types are
+# needed by every TS package (including @ashlar/verifier, which must be runnable by someone who
+# just cloned the repo, without setting up the full Rust/Anchor toolchain first) — track those
+# two specifically. (target/* + explicit dir re-includes, not target/ + file re-includes, because
+# git won't apply a negation pattern to a file inside a directory that's itself fully ignored.)
+target/*
+!target/idl/
+!target/idl/ashlar.json
+!target/types/
+!target/types/ashlar.ts
 .anchor/
 test-ledger/
 

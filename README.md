@@ -258,6 +258,37 @@ https://faucet.circle.com (devnet USDC mint: `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERY
 a real split settlement can complete. SOL transaction fees are already covered by existing devnet
 SOL. See `.env.example` for the x402 vendor server's config.
 
+## Phase 6 status
+
+- [x] **Verifier** (`pnpm verify <workflow>`, `verifier/`) — a standalone CLI, deliberately
+      independent of the app's own client code (no `scripts/lib` import), that independently
+      re-validates every attested step: fetches the real originating transaction, decodes it via
+      the public Anchor IDL, confirms the owner actually signed it, and recomputes the on-chain
+      keccak256 hash to compare against `Attestation.data_hash`. This is necessary (not just
+      thorough) for 2 of the 5 step kinds (`fetch_step`, `mock_settlement`), whose raw hashed data
+      exists nowhere in final account state — only in the original transaction.
+- [x] **Live Public Dashboard** (`dashboard/`) — a small Node relay (`pnpm dashboard-server`)
+      holds the RPC/Helius connection and subscribes to `Attestation` account changes, pushing
+      sanitized events to a React + Vite frontend over Server-Sent Events. The browser never talks
+      to Helius directly and never sees an API key.
+- [x] Verified against real devnet, not just typechecked: `pnpm verify` run against a real
+      in-progress workflow (full PASS, every step's signer and hash independently confirmed), a
+      workflow that paused and was resumed via `resume_after_override` (correctly followed the
+      *resume* transaction's decoded args, not the original guardrail call), and an invalid/
+      unrelated account (correctly reported FAIL with a clean exit code, not a crash). The
+      dashboard relay was confirmed to stream all 3 attestation events live, within seconds, while
+      a real workflow was driven forward in parallel.
+- [x] Two real bugs found and fixed during this verification pass: Anchor's instruction coder
+      returns camelCase instruction names (`fetchStep`) even though the IDL itself is snake_case
+      (`fetch_step`) — the verifier's matching now checks both; and calling `process.exit()`
+      immediately after an RPC call raced a pending `@solana/web3.js` `Connection` handle and
+      crashed with a libuv assertion on Windows, corrupting the CLI's exit code — fixed by using
+      `process.exitCode` instead and letting Node drain naturally.
+
+**Not yet built:** a web frontend for the verifier itself (explicitly deferred — CLI now, by
+design; the core `verifyWorkflow` logic is already split out in `verifier/src/index.ts` so a
+future web page can reuse it directly).
+
 ## Note on Anchor version
 
 This repo uses Anchor CLI 1.1.2 (via WSL2's `avm`), which differs from the 0.30.1-era project
