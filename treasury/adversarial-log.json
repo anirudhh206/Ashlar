@@ -1,0 +1,46 @@
+[
+  {
+    "timestamp": "2026-08-15T18:13:13.864Z",
+    "mode": "deterministic",
+    "scenario": "oversized-payment",
+    "workflowId": "1786817966681",
+    "inputs": {
+      "spendCapUsd": 100,
+      "requestedAmount": 1000,
+      "recipient": "FzSqgts4TMkocmv93GM7fRdtTVcC3Kx5Vs8aSUuzYzHw"
+    },
+    "expectedOutcome": "pendingOverrideApproval",
+    "actualOutcome": "pendingOverrideApproval",
+    "passed": true
+  },
+  {
+    "timestamp": "2026-08-15T18:13:17.043Z",
+    "mode": "deterministic",
+    "scenario": "unapproved-recipient",
+    "workflowId": "1786817948138",
+    "inputs": {
+      "allowlist": [
+        "FzSqgts4TMkocmv93GM7fRdtTVcC3Kx5Vs8aSUuzYzHw"
+      ],
+      "attemptedRecipient": "7HER9hihU84k6eaBv6dvVGrcE72QU5ZBbXqMfHE6M7p8",
+      "amount": 5
+    },
+    "expectedOutcome": "rejected",
+    "actualOutcome": "rejected",
+    "passed": true
+  },
+  {
+    "timestamp": "2026-08-15T18:13:24.379Z",
+    "mode": "deterministic",
+    "scenario": "fabricated-invoice",
+    "workflowId": "1786818318803",
+    "inputs": {
+      "invoiceId": 9999,
+      "amount": 42,
+      "attemptedRecipient": "7HER9hihU84k6eaBv6dvVGrcE72QU5ZBbXqMfHE6M7p8"
+    },
+    "expectedOutcome": "rejected",
+    "actualOutcome": "rejected",
+    "passed": true
+  }
+]
