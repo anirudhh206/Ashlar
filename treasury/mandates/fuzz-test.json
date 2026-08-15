@@ -1,0 +1,25 @@
+{
+  "mandate": {
+    "version": "ap2-mandate-v1",
+    "workflowId": "fuzz-test",
+    "intent": {
+      "description": "Split settlement for workflow fuzz-test"
+    },
+    "cart": {
+      "totalAmountUsdc": "100000000",
+      "currency": "USDC",
+      "splits": {
+        "vendor": "85000000",
+        "taxReserve": "10000000",
+        "yieldPool": "5000000"
+      }
+    },
+    "payment": {
+      "payer": "4txXSvKdM7EkW7NpZdPc9Y1vecwmAHoRMm33XZwqSADY",
+      "vendorRecipient": "HAGa9jn8ci49CDDGbhNiCrtErmtrUbtrWZymeipBZbfn",
+      "createdAt": "2026-08-15T19:11:12.546Z"
+    }
+  },
+  "signature": "R8STQAb+/ouK6UGI92ogDWnwdpzJzXWU0MJWFdrRE2EPZ/s8lDtWta2XY/NeO4jEmerS7vteeCdWc/YcqP/gDA==",
+  "signer": "4txXSvKdM7EkW7NpZdPc9Y1vecwmAHoRMm33XZwqSADY"
+}
