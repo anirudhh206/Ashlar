@@ -1,0 +1,173 @@
+{
+  "timestamp": "2026-08-15T19:06:35.358Z",
+  "stages": [
+    {
+      "stage": 1,
+      "concurrency": 5,
+      "workflowsCorrect": 5,
+      "workflowsCrashed": 0,
+      "correctnessRate": 1,
+      "perInstruction": {
+        "initialize_workflow": {
+          "count": 5,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 2004,
+          "p95Ms": 2218,
+          "p99Ms": 2218
+        },
+        "fetch_step": {
+          "count": 5,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 2353,
+          "p95Ms": 2469,
+          "p99Ms": 2469
+        },
+        "compliance_or_approval": {
+          "count": 5,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 2883,
+          "p95Ms": 2894,
+          "p99Ms": 2894
+        },
+        "guardrail_check": {
+          "count": 5,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 2651,
+          "p95Ms": 2655,
+          "p99Ms": 2655
+        }
+      },
+      "stageDurationMs": 10460
+    },
+    {
+      "stage": 2,
+      "concurrency": 25,
+      "workflowsCorrect": 25,
+      "workflowsCrashed": 0,
+      "correctnessRate": 1,
+      "perInstruction": {
+        "initialize_workflow": {
+          "count": 25,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 2399,
+          "p95Ms": 2612,
+          "p99Ms": 2623
+        },
+        "fetch_step": {
+          "count": 25,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 2412,
+          "p95Ms": 2916,
+          "p99Ms": 3140
+        },
+        "compliance_or_approval": {
+          "count": 25,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 4082,
+          "p95Ms": 4293,
+          "p99Ms": 4294
+        },
+        "guardrail_check": {
+          "count": 25,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 2983,
+          "p95Ms": 3198,
+          "p99Ms": 3198
+        }
+      },
+      "stageDurationMs": 13771
+    },
+    {
+      "stage": 3,
+      "concurrency": 50,
+      "workflowsCorrect": 50,
+      "workflowsCrashed": 0,
+      "correctnessRate": 1,
+      "perInstruction": {
+        "initialize_workflow": {
+          "count": 50,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 2458,
+          "p95Ms": 2497,
+          "p99Ms": 2692
+        },
+        "fetch_step": {
+          "count": 50,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 3128,
+          "p95Ms": 3365,
+          "p99Ms": 3468
+        },
+        "compliance_or_approval": {
+          "count": 50,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 1869,
+          "p95Ms": 3276,
+          "p99Ms": 3534
+        },
+        "guardrail_check": {
+          "count": 50,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 1756,
+          "p95Ms": 2069,
+          "p99Ms": 3468
+        }
+      },
+      "stageDurationMs": 11148
+    },
+    {
+      "stage": 4,
+      "concurrency": 50,
+      "workflowsCorrect": 50,
+      "workflowsCrashed": 0,
+      "correctnessRate": 1,
+      "perInstruction": {
+        "initialize_workflow": {
+          "count": 50,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 3840,
+          "p95Ms": 3910,
+          "p99Ms": 3926
+        },
+        "fetch_step": {
+          "count": 50,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 4202,
+          "p95Ms": 4421,
+          "p99Ms": 4449
+        },
+        "compliance_or_approval": {
+          "count": 50,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 3865,
+          "p95Ms": 4112,
+          "p99Ms": 4119
+        },
+        "guardrail_check": {
+          "count": 50,
+          "successRate": 1,
+          "errors429": 0,
+          "p50Ms": 1946,
+          "p95Ms": 2185,
+          "p99Ms": 4897
+        }
+      },
+      "stageDurationMs": 17147
+    }
+  ]
+}
