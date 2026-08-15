@@ -371,6 +371,61 @@ real bug: `driveWorkflow.ts`'s early-refusal path used `break` instead of `retur
 fell through to a misleading "stopped after reaching the 10-turn safety cap" message even when
 the agent exited correctly on the first turn.
 
+## Full system stress test: heavy load + deep adversarial diagnosis
+
+A standalone hardening pass, user-requested and scoped via plan approval before anything ran,
+going well beyond Phase 8's 3 scenarios. Everything ran for real against devnet — no mocks.
+
+**Part 1 — sustained load** (`pnpm load-test`, `scripts/devnet/load-test.ts`): ramped 5 → 25 → 50
+→ 50 concurrent workflow executions (130 total, two waves at peak), mixing both templates, the
+full $0-to-`Number.MAX_SAFE_INTEGER` amount range, and a deliberate mix of should-reject
+(over-cap, non-allowlisted) requests alongside legitimate ones in the same concurrent batch.
+**Every stage: 100% transaction success, 100% workflow-outcome correctness, 0 crashes.** Latency
+roughly doubled from stage 1 to peak sustained load but never failed.
+
+**Real bug found and fixed before the load test could even run cleanly:** 8 of 15 `pnpm` script
+aliases — including `deploy-workflow`, `adversarial-test`, and `verify` — never loaded `.env` at
+all, so `HELIUS_RPC_URL` was never in `process.env` and every one of those scripts silently fell
+back to the free, heavily-rate-limited public RPC this entire session, not just under this
+heavier load. All fixed (`--env-file-if-exists=.env` added everywhere it was missing).
+
+**Part 2 — deep adversarial diagnosis** (`pnpm security-diagnosis <scenario|all>`,
+`scripts/devnet/security-diagnosis.ts`), 8 attack classes, all real:
+- **Replay attack** — resubmitting the exact raw signed transaction bytes of an already-confirmed
+  instruction: Solana's own runtime correctly rejects it ("already been processed").
+- **Race/TOCTOU** — firing `guardrail_check` and a premature `mock_settlement` concurrently
+  across 5 real trials: settlement never once succeeded, blocked either by the intended
+  `OutOfOrderStep` check or an account-seed collision — no window ever existed.
+- **AP2 canonicalization fuzz** — 7 cases extending the earlier payload-substitution fix (nested
+  mutation, key reordering, injected fields, unicode substitution): all 7 correctly
+  pass/fail as expected, confirming that fix is complete, not just closed for the one
+  originally-tested case.
+- **Malformed-input fuzz** — found a real gap: a negative `BN` amount didn't throw or wrap to a
+  dangerous huge value, it silently coerced to its absolute value. Not a fund-safety bug
+  (`guardrail_check` still enforces the cap on whatever lands), but fixed with explicit
+  client-side validation at every real input boundary (`policyEngineClient.ts`) regardless.
+- **Double-execution/idempotency** — calling `fetch_step` twice for the same step: correctly
+  blocked by the step-order check itself, not just an account-collision fallback.
+- **Network/settlement failure safety** — a failed settlement leaves zero partial on-chain state;
+  an unreachable RPC endpoint fails cleanly, never silently.
+- **Webhook flood + near-miss auth** — 30 concurrent bad-token requests, 100% correctly rejected.
+  Found a real gap: zero rate-limiting existed. Fixed with a small in-memory per-IP limiter
+  (`agent/src/server.ts`) — verified it engages correctly while still passing legitimate traffic.
+- **3 new live-agent injection variants** (spend cap, allowlist, compliance/step-order), each a
+  real Claude tool-use call: all three resisted at the *model's own judgment*, not just via
+  on-chain enforcement as a backstop — the spend-cap injection had zero effect on the amount
+  used, the allowlist injection couldn't redirect payout (architecturally impossible regardless
+  of what the model believes), and the step-order injection didn't cause any skipped steps.
+
+Every attempt across both parts is logged to `treasury/load-test-log.json` and
+`treasury/adversarial-log.json` for a persistent, real audit trail.
+
+**Honest gaps, not new ones:** no scenario reached a real completed settlement (Phase 5's
+USDC-devnet funding is still pending); Helius's own devnet rate limits mean 429s still occur
+under load (fully absorbed by retry logic, never surfaced as a failure, but real); literal
+`u64::MAX` and exhaustive webhook-secret brute force were deliberately not attempted (documented
+in the plan as out of scope, not discovered as a blocker mid-run).
+
 ## Note on Anchor version
 
 This repo uses Anchor CLI 1.1.2 (via WSL2's `avm`), which differs from the 0.30.1-era project
