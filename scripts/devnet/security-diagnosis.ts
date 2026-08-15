@@ -142,7 +142,7 @@ function testAp2Fuzz(): void {
   const payer = Keypair.generate();
   const vendor = Keypair.generate().publicKey;
   const base = createPaymentMandate({
-    workflowId: 'fuzz-test',
+    workflowId: 'fuzz-test-alpha',
     totalAmountUsdc: 100_000_000n,
     vendorAmountUsdc: 85_000_000n,
     taxReserveAmountUsdc: 10_000_000n,
