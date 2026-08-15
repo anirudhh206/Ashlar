@@ -45,11 +45,31 @@ owner via the same Telegram layer used for pause notifications (`scripts/lib/not
 receipt's asset ID and an Explorer link — the roadmap's "Owner Receives Final Receipt"
 notification.
 
+## Adversarial testing (Phase 8)
+
+The "no signing authority" property above is what makes "AI says yes, the chain says no" real:
+`submit_fetch_step`/`submit_compliance_or_approval_decision` are never independently checked
+against a real invoice, so a compromised or hallucinating agent can claim anything about them —
+the only objective, immutable block is `guardrail_check`'s `spend_cap`/`allowlist`, fixed by the
+owner at `initialize_workflow` and never touched again.
+
+`pnpm adversarial-test [scenario|all]` (`scripts/devnet/adversarial-test.ts`) drives
+`src/tools.ts`'s `createToolExecutor` directly — the same code path the model's tool calls go
+through — with attacker-chosen inputs, and confirms every attempt is correctly blocked.
+Deterministic, no live model needed. `pnpm adversarial-agent-demo`
+(`scripts/devnet/adversarial-agent-demo.ts`) feeds the real `driveWorkflow` loop a deliberately
+injected trigger and records what the live model actually does alongside the chain's real
+outcome. Every attempt from both is logged to `treasury/adversarial-log.json`.
+
 ## Usage
 
 ```powershell
 # One-off: initialize a fresh workflow and let the agent drive it to completion
 pnpm agent-demo ["<instruction>"] [invoiceId]
+
+# Adversarial testing — see "Adversarial testing (Phase 8)" above
+pnpm adversarial-test all
+pnpm adversarial-agent-demo
 
 # Or: run the trigger server, then POST to it (real Helius webhook or scripts/devnet/scheduled-trigger.ts)
 pnpm agent-server
@@ -77,4 +97,4 @@ dashboard create a webhook pointed at `<tunnel-url>/trigger` with a custom Autho
 `Bearer <HELIUS_WEBHOOK_SECRET>`. This registration step is manual/human — it needs a live tunnel
 URL and dashboard access, so it isn't automated here.
 
-**Status: implemented (Phase 3 + Phase 4 + Phase 5 + Phase 7).**
+**Status: implemented (Phase 3 + Phase 4 + Phase 5 + Phase 7 + Phase 8).**

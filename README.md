@@ -323,6 +323,42 @@ and minting a receipt, since that requires reaching `mock_settlement`, which is 
 Phase 5's pending USDC-devnet funding human action item (see Phase 5 status above) — not a new gap
 introduced by this phase.
 
+## Phase 8 status
+
+- [x] **Deterministic adversarial-test CLI** (`pnpm adversarial-test [scenario|all]`,
+      `scripts/devnet/adversarial-test.ts`) — drives `agent/src/tools.ts`'s `createToolExecutor`
+      directly, the exact same code path the LLM's tool calls go through, with attacker-chosen
+      inputs instead of the model's. Three scenarios: an oversized payment, a recipient outside
+      the workflow's allowlist, and a fabricated invoice id that doesn't exist at all — combined
+      with a "yes" compliance claim nothing independently verifies. Fully deterministic, no
+      `ANTHROPIC_API_KEY` needed, so it's repeatable in CI or by a stranger at a terminal.
+- [x] **Live-agent adversarial demo** (`pnpm adversarial-agent-demo`,
+      `scripts/devnet/adversarial-agent-demo.ts`) — a required deliverable, not a bonus: feeds the
+      real Claude tool-use loop a deliberately injected trigger (a fabricated invoice framed as
+      pre-approved for an over-cap amount) and records whatever the live model actually attempts
+      alongside the chain's real final outcome, rather than asserting a fixed expectation on
+      non-deterministic model behavior.
+- [x] **Persistent audit log** (`treasury/adversarial-log.json`, `scripts/lib/adversarialLog.ts`)
+      — every attempt from both mechanisms is appended with its inputs and actual on-chain
+      outcome, same tracked-audit pattern as `treasury/mandates/`/`treasury/settlements/`.
+- [x] The one on-chain scenario `tests/policy-engine.ts` didn't yet cover — a recipient outside
+      the allowlist with an amount safely within the spend cap — is now a formal test case
+      (9/9 passing, up from 8/8, no regressions).
+- [x] **Verified against real devnet, not just typechecked:** all three deterministic scenarios
+      correctly blocked (`pendingOverrideApproval` / `rejected` exactly as expected), exit code
+      `0`, all three attempts logged.
+
+**The honest architectural point this phase makes explicit, not hides:** `submit_fetch_step` and
+`submit_compliance_or_approval_decision` are never independently verified against a real invoice
+— a compromised or hallucinating agent (or an attacker driving the same tool calls) can claim
+anything about them. The **only** objective, immutable enforcement is `guardrail_check`'s
+`spend_cap`/`allowlist` check, fixed by the owner at `initialize_workflow` time. That's the actual
+mechanism behind "AI says yes, the chain says no" — this phase proves it rather than changing it.
+
+**Not yet exercised in this environment:** `pnpm adversarial-agent-demo` run live, since
+`ANTHROPIC_API_KEY` isn't set in this environment yet — same gap Phase 3's `agent-demo` has always
+had. Structurally verified via typecheck/lint only until the key is available.
+
 ## Note on Anchor version
 
 This repo uses Anchor CLI 1.1.2 (via WSL2's `avm`), which differs from the 0.30.1-era project
