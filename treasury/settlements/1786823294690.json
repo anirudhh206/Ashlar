@@ -1,0 +1,24 @@
+{
+  "workflowId": "1786823294690",
+  "totalAmountUsd": 5,
+  "usdcUsdPrice": 0.9998734,
+  "splits": {
+    "vendorUsdcAtomic": "4250538",
+    "taxReserveUsdcAtomic": "500063",
+    "yieldPoolUsdcAtomic": "250032"
+  },
+  "vendorPayment": {
+    "invoiceUrl": "http://localhost:8788/invoice?amount=4250538",
+    "status": 200
+  },
+  "taxReserveTransferSignature": "36kAECNGwqp4fycUb6FnbbBJbSwEbPJZNXS4aZZvGuwwjZoqmNQ1kXHQ2ZQp92VpERvNBuwHs1pcVmZ35Hbsg3FU",
+  "yieldPoolTransferSignature": "4MYzRPdw4iGSqRVGouyDrtam365F1su9qgDAgXkdUFQuhdAcQRfYt1co9ffBk915jSNXavPSTVMXhEvKwR2TWioD",
+  "ap2Mandate": {
+    "signature": "/a3ZvzhZQoCdtdaXQjVqC0V6ttvU6SGH1K0ruhlxK1xzT7qWEfAGR5vRJG2txogKYKYHHujFXDPBPNflpce3DQ==",
+    "verified": true
+  },
+  "agentIdentity": {
+    "registered": true,
+    "assetAddress": "6Rr22EKgVzjsGt6zwMu6Qco7xeEVv2MTegA95F3Bxh2J"
+  }
+}

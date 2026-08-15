@@ -159,8 +159,7 @@ treasury — see below.)
 **Run live for real** once `ANTHROPIC_API_KEY` was configured: `pnpm agent-demo` drove a real
 workflow autonomously through `get_invoice_data` → `submit_fetch_step` → compliance/approval →
 `submit_guardrail_check`, three real on-chain transactions, using only its 5 tools with no manual
-intervention. Settlement itself still hits Phase 5's known USDC-funding gap (see Phase 5 status),
-not a new one. Also fixed a stale bug found in the process: `run-agent-demo.ts`'s default
+intervention. Also fixed a stale bug found in the process: `run-agent-demo.ts`'s default
 instruction still referenced Phase 2's lamport-scale units (`$2000000`) instead of Phase 5's real
 USD amounts — every other devnet script's default was updated at the time, this one was missed.
 
@@ -200,8 +199,8 @@ called `submit_guardrail_check` with the invoice's real amount, the chain paused
 (`PendingOverrideApproval`), and `driveWorkflow.ts` paged the owner and stopped, exactly as
 designed. Both `pnpm resume-workflow <id> approve` and `... reject` were run for real afterward:
 `reject` correctly leaves the workflow terminally `Rejected`; `approve` correctly resumes it
-(`InProgress`, real transaction) before hitting the same known Phase 5 USDC-funding gap at
-settlement. **Still not exercised:** real Telegram delivery, since `TELEGRAM_BOT_TOKEN`/
+(`InProgress`, real transaction) and now runs all the way through a real settlement (see Phase 5
+status — USDC funding is complete). **Still not exercised:** real Telegram delivery, since `TELEGRAM_BOT_TOKEN`/
 `TELEGRAM_CHAT_ID` aren't configured in this environment yet — `scripts/lib/notify.ts` logs
 clearly to console when Telegram isn't configured,
 so nothing fails silently.
@@ -240,10 +239,9 @@ so nothing fails silently.
       `deploy-workflow.ts`, `agent/src/tools.ts`, and `resume-workflow.ts`. Full evidence is
       written to `treasury/settlements/<workflowId>.json`; only a compact summary goes on-chain.
 - [x] Verified against real devnet, not just typechecked: the x402 facilitator smoke test, the
-      agent identity registration + read-back, and a full `pnpm deploy-workflow` run — all four
+      agent identity registration + read-back, and a full `pnpm deploy-workflow` run — all five
       on-chain gates (`initialize_workflow`, `fetch_step`, `manual_approval`/`compliance_check`,
-      `guardrail_check`) complete for real, with the run failing only at the expected point (no
-      funded USDC-devnet balance yet — see below).
+      `guardrail_check`, `mock_settlement`) complete for real, ending in genuine `Completed` status.
 
 **Architectural note — two separate settlement tracks, intentionally.** Phase 4's Squads multisig
 treasury (pooled lamports) still exists and still governs the pause/notify/resume-override
@@ -253,17 +251,27 @@ which a multisig can't be without deeper Squads integration than this phase's sc
 they just answer different questions (who authorizes a payout vs. how the settlement itself moves
 funds).
 
-**Not yet exercised in this environment:** a real, funded x402 payment settling all the way through
-the PayAI facilitator, since the business-owner wallet has no devnet USDC balance yet in this
-environment. Every piece up to that point — Pyth pricing, AP2 mandate signing, the 402 challenge
-round-trip against a live facilitator, agent identity verification — is independently verified
-against real devnet/live services (see the checklist above); only the final funded transfer is
-gated on the human action item below.
+**Fully exercised, real, funded settlement (business-owner's USDC-devnet account funded via
+https://faucet.circle.com):** running `pnpm deploy-workflow` end-to-end now produces a genuine
+completed settlement — Pyth-priced 85/10/5 split, a real x402 payment through PayAI's live
+facilitator (vendor leg), real SPL transfers for the tax-reserve/yield-pool legs, a signed AP2
+mandate, and an on-chain `mock_settlement` attestation, all folded into
+`treasury/settlements/<workflowId>.json`. Independently confirmed via `pnpm verify <workflowPda>`:
+every one of the 4 attested steps re-validates (signer + hash), overall `PASS`.
 
-**Human action item:** fund `business-owner`'s USDC-devnet associated token account via
-https://faucet.circle.com (devnet USDC mint: `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`) before
-a real split settlement can complete. SOL transaction fees are already covered by existing devnet
-SOL. See `.env.example` for the x402 vendor server's config.
+**Real bug found and fixed while wiring up the funded payment — an internal inconsistency in the
+`x402-solana` npm package itself:** its own `create402Response()` never sets a `PAYMENT-REQUIRED`
+response header, so its own client falls back to protocol v1 (`X-PAYMENT` header,
+`createPaymentPayloadV1`'s payload shape) — but its own server handler's
+`extractPayment()`/`verifyPayment()` only ever recognizes the v2 `PAYMENT-SIGNATURE` header/shape,
+and the real PayAI facilitator's `/verify` endpoint only accepts v2-shaped payloads. A v1 payment
+reliably failed with `{"error":"unexpected_verify_error"}` (reproduced 3x, not transient). Fixed in
+`scripts/devnet/x402-vendor-server.ts` by explicitly setting a `PAYMENT-REQUIRED` header on the 402
+response, forcing the client onto protocol v2 throughout — this is not something fixable upstream
+from this project, since both sides of the mismatch live inside the third-party package. Also
+required manually creating the vendor's USDC Associated Token Account
+(`spl-token create-account`) — a real, documented x402 expectation that the payment recipient is
+responsible for having its own ATA ready before it can receive funds.
 
 ## Phase 6 status
 
@@ -325,10 +333,10 @@ future web page can reuse it directly).
       just-landed mint transaction via Bubblegum's leaf-parsing helper needs a real retry budget
       past the first few seconds, same propagation-lag pattern seen in earlier phases.
 
-**Not yet exercised in this environment:** the full `pnpm deploy-workflow` path actually reaching
-and minting a receipt, since that requires reaching `mock_settlement`, which is still gated on
-Phase 5's pending USDC-devnet funding human action item (see Phase 5 status above) — not a new gap
-introduced by this phase.
+**Now fully exercised end-to-end:** a real `pnpm deploy-workflow` run (see Phase 5 status — USDC
+funding is complete) reached genuine `Completed` status and minted a real receipt cNFT
+(`CpxvZzxFdb4u7JGiZtHokW4Uerbzcyi1cX5xCqK5ER5d`) via this exact call site, closing out what had
+been the last funding-gated piece of this phase.
 
 ## Phase 8 status
 
@@ -420,8 +428,10 @@ heavier load. All fixed (`--env-file-if-exists=.env` added everywhere it was mis
 Every attempt across both parts is logged to `treasury/load-test-log.json` and
 `treasury/adversarial-log.json` for a persistent, real audit trail.
 
-**Honest gaps, not new ones:** no scenario reached a real completed settlement (Phase 5's
-USDC-devnet funding is still pending); Helius's own devnet rate limits mean 429s still occur
+**Honest gaps at the time this pass ran:** no scenario reached a real completed settlement, since
+Phase 5's USDC-devnet funding was still pending at that point (funding has since landed — see
+Phase 5 status — and a real completed settlement has now been run separately, just not as part of
+this load/adversarial pass itself); Helius's own devnet rate limits mean 429s still occur
 under load (fully absorbed by retry logic, never surfaced as a failure, but real); literal
 `u64::MAX` and exhaustive webhook-secret brute force were deliberately not attempted (documented
 in the plan as out of scope, not discovered as a blocker mid-run).
