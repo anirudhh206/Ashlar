@@ -34,7 +34,11 @@ status is "approved"), then submit_guardrail_check with the invoice amount, then
 submit_mock_settlement. After each tool call, check its result. If a step's on-chain outcome
 indicates rejection, stop immediately — do not retry or attempt anything else.`;
 
-export async function driveWorkflow(workflowIdRaw: string | number, invoiceId: number): Promise<void> {
+export async function driveWorkflow(
+  workflowIdRaw: string | number,
+  invoiceId: number,
+  triggerNote?: string,
+): Promise<void> {
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   if (!anthropicApiKey) {
     throw new Error('ANTHROPIC_API_KEY is not set — see .env.example');
@@ -51,12 +55,12 @@ export async function driveWorkflow(workflowIdRaw: string | number, invoiceId: n
   );
   const executeTool = createToolExecutor(ctx, workflowId, recipient);
 
-  const messages: Anthropic.MessageParam[] = [
-    {
-      role: 'user',
-      content: `A trigger fired for workflow ${workflowIdRaw.toString()}, invoice ${invoiceId}. Drive it to completion.`,
-    },
-  ];
+  // triggerNote lets a caller (e.g. scripts/devnet/adversarial-agent-demo.ts) attach extra
+  // trigger text — used to test the agent against an injected/manipulated instruction. It's
+  // just more untrusted user-role content; the model's tool schemas are what actually bound
+  // what it can do, not anything in this message.
+  const triggerMessage = `A trigger fired for workflow ${workflowIdRaw.toString()}, invoice ${invoiceId}. Drive it to completion.${triggerNote ? `\n\n${triggerNote}` : ''}`;
+  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: triggerMessage }];
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const response = await client.messages.create({
