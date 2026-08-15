@@ -436,6 +436,37 @@ under load (fully absorbed by retry logic, never surfaced as a failure, but real
 `u64::MAX` and exhaustive webhook-secret brute force were deliberately not attempted (documented
 in the plan as out of scope, not discovered as a blocker mid-run).
 
+## Phase 9 status
+
+- [x] **Two real, structurally different completed workflows**, same compiler and same on-chain
+      program — `one-time-approval-gated-transfer`
+      ([`BLNk3YKYy65FQKoBwRR2xQgytZ2ZZ99Phwp6A6ZqEjJr`](https://explorer.solana.com/address/BLNk3YKYy65FQKoBwRR2xQgytZ2ZZ99Phwp6A6ZqEjJr?cluster=devnet))
+      and `recurring-conditional-payment`
+      ([`43u2XzFUb2yB32Sd83Qad6d8Sz51L4m5z7Tvc6pVoXN8`](https://explorer.solana.com/address/43u2XzFUb2yB32Sd83Qad6d8Sz51L4m5z7Tvc6pVoXN8?cluster=devnet)),
+      both independently confirmed via `pnpm verify` — full `PASS`, every attested step's signer
+      and hash re-derived from Solana's own transaction history. This is the "platform, not app"
+      proof the roadmap asks for.
+- [x] **`demo/RUNBOOK.md`** — a literal, timed, copy-pasteable choreography covering the roadmap's
+      6 demo beats (live instruction, split-screen Explorer/dashboard, deliberate guardrail
+      trigger + owner-only resume, adversarial injection attempt, independent verification by
+      someone else, cNFT receipt in Phantom), with explicit fallback notes for slow confirmations,
+      429s, and low balances. Deliberately uses `pnpm resume-workflow ... reject` rather than
+      `approve` for the live oversized-payment beat, since that scenario's amount ($1,000) exceeds
+      what's worth funding for a demo wallet — `approve` at demo-safe amounts is already verified
+      working (Phase 4 status above), and the runbook says so plainly rather than hiding it.
+- [x] **`demo/architecture-diagram.md`** — a Mermaid diagram of the full system (off-chain compiler
+      / agent, on-chain program, external settlement rails, independent verifier/dashboard layer),
+      rendering natively in GitHub with no external tooling.
+- [x] **`demo/one-pager.md`**, **`demo/honest-caveats.md`** — a leave-behind summary with concrete
+      proof (real tx signatures, real Explorer links) and a single collected list of what's
+      simplified for a devnet demo, gathered from what had been scattered across 9 phases' worth of
+      status sections.
+
+**Human action item:** the actual timed live rehearsal — running the runbook start to finish with
+a clock, in front of a person — is something only the presenter can do; everything in it has been
+individually verified to work, but "rehearsed under 5 minutes live" isn't something a coding
+session can complete on your behalf.
+
 ## Note on Anchor version
 
 This repo uses Anchor CLI 1.1.2 (via WSL2's `avm`), which differs from the 0.30.1-era project
