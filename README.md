@@ -156,12 +156,13 @@ treasury — see below.)
 - [x] Shared `scripts/lib/policyEngineClient.ts` extracted from Phase 2's `deploy-workflow.ts`, now
       reused by both the CLI script and the agent's tools
 
-**Not yet run end-to-end:** `pnpm agent-demo` and the live trigger flow require a real
-`ANTHROPIC_API_KEY` (see `.env.example`), which wasn't available in the environment this was built
-in. Everything not gated on that key was verified directly: typecheck, lint, the refactored
-`deploy-workflow.ts` still completing a full workflow on devnet, and the trigger server's auth
-rejection paths (401/400) against a running server. Run `pnpm agent-demo` yourself once
-`ANTHROPIC_API_KEY` is set to see the live agent loop.
+**Run live for real** once `ANTHROPIC_API_KEY` was configured: `pnpm agent-demo` drove a real
+workflow autonomously through `get_invoice_data` → `submit_fetch_step` → compliance/approval →
+`submit_guardrail_check`, three real on-chain transactions, using only its 5 tools with no manual
+intervention. Settlement itself still hits Phase 5's known USDC-funding gap (see Phase 5 status),
+not a new one. Also fixed a stale bug found in the process: `run-agent-demo.ts`'s default
+instruction still referenced Phase 2's lamport-scale units (`$2000000`) instead of Phase 5's real
+USD amounts — every other devnet script's default was updated at the time, this one was missed.
 
 **Human action item:** registering a real Helius webhook against `/trigger` needs a running public
 tunnel (e.g. `ngrok http 8787`) and Helius dashboard access — see `agent/README.md`.
@@ -193,10 +194,16 @@ still fully enforced; what changed is that "funds moved" is now a verifiable, se
 claim rather than an atomic CPI. A tighter version (the Squads vault transaction CPIs into our own
 program) is possible but deferred, same pattern as ZK compression.
 
-**Not yet exercised in this environment:** the actual Telegram delivery and the full
-agent-pauses → notifies → owner-resumes loop, since both need a live `ANTHROPIC_API_KEY` to drive
-the agent (same gap as Phase 3). The on-chain pause/resume mechanics themselves are fully verified
-by the test suite; `scripts/lib/notify.ts` logs clearly to console when Telegram isn't configured,
+**Run live for real** once `ANTHROPIC_API_KEY` was configured: triggered a genuine over-cap
+request through the live agent (spend cap below the real invoice amount) — the agent correctly
+called `submit_guardrail_check` with the invoice's real amount, the chain paused it
+(`PendingOverrideApproval`), and `driveWorkflow.ts` paged the owner and stopped, exactly as
+designed. Both `pnpm resume-workflow <id> approve` and `... reject` were run for real afterward:
+`reject` correctly leaves the workflow terminally `Rejected`; `approve` correctly resumes it
+(`InProgress`, real transaction) before hitting the same known Phase 5 USDC-funding gap at
+settlement. **Still not exercised:** real Telegram delivery, since `TELEGRAM_BOT_TOKEN`/
+`TELEGRAM_CHAT_ID` aren't configured in this environment yet — `scripts/lib/notify.ts` logs
+clearly to console when Telegram isn't configured,
 so nothing fails silently.
 
 **Human action item:** create a Telegram bot via @BotFather and set `TELEGRAM_BOT_TOKEN`/
