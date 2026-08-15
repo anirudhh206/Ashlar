@@ -16,6 +16,7 @@
     "setup-receipt-collection": "tsx --env-file-if-exists=.env scripts/devnet/setup-receipt-collection.ts",
     "adversarial-test": "tsx --env-file-if-exists=.env scripts/devnet/adversarial-test.ts",
     "load-test": "tsx --env-file-if-exists=.env scripts/devnet/load-test.ts",
+    "security-diagnosis": "tsx --env-file-if-exists=.env scripts/devnet/security-diagnosis.ts",
     "adversarial-agent-demo": "tsx --env-file-if-exists=.env scripts/devnet/adversarial-agent-demo.ts",
     "verify": "tsx --env-file-if-exists=.env verifier/src/cli.ts",
     "dashboard-server": "tsx --env-file-if-exists=.env dashboard/server/relay.ts",
