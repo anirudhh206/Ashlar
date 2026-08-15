@@ -162,6 +162,39 @@ describe('policy-engine', () => {
     assert.deepEqual(attestationAccount.outcome, { failed: {} });
   });
 
+  it('guardrail rejects (terminally) a recipient outside the allowlist', async () => {
+    const spendCap = new anchor.BN(2_000_000);
+    const { workflowId, workflow, ledger } = await initWorkflow(
+      { oneTimeApprovalGatedTransfer: {} },
+      spendCap,
+      [vendor.publicKey],
+    );
+    const idBN = new anchor.BN(workflowId.toString());
+    const { attestation } = pdas(workflowId);
+    const notAllowlisted = anchor.web3.Keypair.generate().publicKey;
+
+    await program.methods
+      .fetchStep(idBN, new anchor.BN(6), new anchor.BN(1_000_000))
+      .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(0), ledger })
+      .rpc();
+    await program.methods
+      .manualApproval(idBN, true)
+      .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(1), ledger })
+      .rpc();
+
+    // amount (1_000_000) is within the cap — only the allowlist should block this
+    await program.methods
+      .guardrailCheck(idBN, new anchor.BN(1_000_000), notAllowlisted)
+      .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(2), ledger })
+      .rpc();
+
+    const workflowAccount = await program.account.workflowInstance.fetch(workflow);
+    assert.deepEqual(workflowAccount.status, { rejected: {} });
+
+    const attestationAccount = await program.account.attestation.fetch(attestation(2));
+    assert.deepEqual(attestationAccount.outcome, { failed: {} });
+  });
+
   it('manual approval rejects when denied', async () => {
     const spendCap = new anchor.BN(2_000_000);
     const { workflowId, workflow, ledger } = await initWorkflow(
