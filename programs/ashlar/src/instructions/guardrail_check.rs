@@ -68,9 +68,18 @@ pub fn handle_guardrail_check(
         clock.unix_timestamp,
     )?;
 
+    // Stored regardless of outcome: an over-cap pause needs these to resume via
+    // resume_after_override, since the amount/recipient aren't re-supplied at resume time.
+    workflow.pending_amount = amount;
+    workflow.pending_recipient = recipient;
+
     if !within_cap {
-        workflow.status = WorkflowStatus::Rejected;
-        msg!("Guardrail rejected: {} exceeds spend cap {}", amount, workflow.spend_cap);
+        workflow.status = WorkflowStatus::PendingOverrideApproval;
+        msg!(
+            "Guardrail paused: {} exceeds spend cap {} — awaiting owner override",
+            amount,
+            workflow.spend_cap
+        );
         return Ok(());
     }
     if !allowlisted {
@@ -79,8 +88,6 @@ pub fn handle_guardrail_check(
         return Ok(());
     }
 
-    workflow.pending_amount = amount;
-    workflow.pending_recipient = recipient;
     workflow.current_step += 1;
     msg!("Guardrail check passed for {} lamports to {}", amount, recipient);
     Ok(())

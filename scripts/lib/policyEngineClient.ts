@@ -56,7 +56,6 @@ export function resolveVendorPubkey(): PublicKey {
 export interface WorkflowPdas {
   workflow: PublicKey;
   ledger: PublicKey;
-  vault: PublicKey;
   attestationPda(stepIndex: number): PublicKey;
 }
 
@@ -75,10 +74,6 @@ export function deriveWorkflowPdas(
     [Buffer.from('ledger'), workflow.toBuffer()],
     programId,
   );
-  const [vault] = PublicKey.findProgramAddressSync(
-    [Buffer.from('vault'), workflow.toBuffer()],
-    programId,
-  );
   function attestationPda(stepIndex: number): PublicKey {
     const [pda] = PublicKey.findProgramAddressSync(
       [Buffer.from('attestation'), workflow.toBuffer(), Buffer.from([stepIndex])],
@@ -87,7 +82,7 @@ export function deriveWorkflowPdas(
     return pda;
   }
 
-  return { workflow, ledger, vault, attestationPda };
+  return { workflow, ledger, attestationPda };
 }
 
 export function explorerLink(signature: string): string {
@@ -110,7 +105,6 @@ export async function initializeWorkflow(
       owner: ctx.owner.publicKey,
       workflow: pdas.workflow,
       ledger: pdas.ledger,
-      vault: pdas.vault,
     })
     .rpc();
   return { signature, pdas };
@@ -177,22 +171,43 @@ export async function submitGuardrailCheck(
     .rpc();
 }
 
+/** `settlementReference` is the Squads execution tx signature (see squadsClient.completeSettlement)
+ * — the real fund movement must already have happened before this is called; this instruction
+ * only attests to it. */
 export async function submitMockSettlement(
   ctx: PolicyEngineContext,
   workflowId: anchor.BN,
-  recipient: PublicKey,
+  settlementReference: string,
 ): Promise<string> {
   const pdas = deriveWorkflowPdas(ctx.program.programId, ctx.owner.publicKey, workflowId);
   const workflow = await ctx.program.account.workflowInstance.fetch(pdas.workflow);
   return ctx.program.methods
-    .mockSettlement(workflowId)
+    .mockSettlement(workflowId, settlementReference)
     .accountsPartial({
       owner: ctx.owner.publicKey,
       workflow: pdas.workflow,
       attestation: pdas.attestationPda(workflow.currentStep),
       ledger: pdas.ledger,
-      vault: pdas.vault,
-      recipient,
+    })
+    .rpc();
+}
+
+/** Owner-only. Resumes a workflow paused in `PendingOverrideApproval` by amending the
+ * guardrail step's own attestation/ledger entry — see resume_after_override.rs. */
+export async function submitResumeAfterOverride(
+  ctx: PolicyEngineContext,
+  workflowId: anchor.BN,
+  approved: boolean,
+): Promise<string> {
+  const pdas = deriveWorkflowPdas(ctx.program.programId, ctx.owner.publicKey, workflowId);
+  const workflow = await ctx.program.account.workflowInstance.fetch(pdas.workflow);
+  return ctx.program.methods
+    .resumeAfterOverride(workflowId, approved)
+    .accountsPartial({
+      owner: ctx.owner.publicKey,
+      workflow: pdas.workflow,
+      attestation: pdas.attestationPda(workflow.currentStep),
+      ledger: pdas.ledger,
     })
     .rpc();
 }

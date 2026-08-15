@@ -30,6 +30,9 @@ pub enum WorkflowStatus {
     InProgress,
     Completed,
     Rejected,
+    /// An over-cap guardrail failure — resumable only by the owner's own signature via
+    /// `resume_after_override`, unlike an allowlist failure (which is terminal `Rejected`).
+    PendingOverrideApproval,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, InitSpace, Clone, Copy, PartialEq, Eq, Debug)]
@@ -55,7 +58,6 @@ pub struct WorkflowInstance {
     pub pending_amount: u64,
     pub pending_recipient: Pubkey,
     pub bump: u8,
-    pub vault_bump: u8,
 }
 
 #[account]

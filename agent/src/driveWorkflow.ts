@@ -1,5 +1,9 @@
 /**
- * Phase 3 — AI Agent Reasoning Layer.
+ * Phase 3 — AI Agent Reasoning Layer. Phase 4 adds pause/notify: an over-cap guardrail result
+ * pauses the on-chain workflow (`PendingOverrideApproval`) rather than rejecting it, and this
+ * loop pages the Business Owner via Telegram and stops. There is deliberately no resume/override
+ * tool in ./tools.ts — the model can never un-pause a workflow; only the owner's own signature
+ * can, via `pnpm resume-workflow` (see scripts/devnet/resume-workflow.ts).
  *
  * Runs a Claude tool-use loop that drives one compiled workflow from trigger to completion.
  * The model's only affordances are the 5 tools in ./tools.ts — it cannot construct or sign a
@@ -15,6 +19,7 @@ import {
   getWorkflow,
 } from '../../scripts/lib/policyEngineClient.js';
 import { TOOLS, createToolExecutor } from './tools.js';
+import { notifyOwner } from '../../scripts/lib/notify.js';
 
 const MAX_TURNS = 10;
 const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5';
@@ -87,6 +92,15 @@ export async function driveWorkflow(workflowIdRaw: string | number, invoiceId: n
     messages.push({ role: 'user', content: toolResults });
 
     const workflowAccount = await getWorkflow(ctx, workflowPda);
+    if ('pendingOverrideApproval' in workflowAccount.status) {
+      await notifyOwner(
+        `Workflow ${workflowIdRaw.toString()} paused: requested ${workflowAccount.pendingAmount.toString()} ` +
+          `lamports exceeds the spend cap of ${workflowAccount.spendCap.toString()} lamports. ` +
+          `Run \`pnpm resume-workflow ${workflowIdRaw.toString()} approve\` (or \`reject\`) to resolve it.`,
+      );
+      console.log(`[agent] workflow paused, owner notified — stopping (no override tool available to me)`);
+      return;
+    }
     if (!('inProgress' in workflowAccount.status)) {
       console.log(`[agent] workflow finished with status ${JSON.stringify(workflowAccount.status)}`);
       return;

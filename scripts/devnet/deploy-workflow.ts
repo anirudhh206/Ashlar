@@ -21,9 +21,10 @@ import {
   explorerLink,
   type WorkflowTypeArg,
 } from '../lib/policyEngineClient.js';
+import { completeSettlement } from '../lib/squadsClient.js';
 
-// Amount is in lamports (mock currency unit for Phase 2 — see README); must clear Solana's
-// rent-exempt minimum (~890,880 lamports) since it funds the workflow's vault PDA.
+// Amount is in lamports (mock currency unit — see README). Settled from the pooled Squads
+// treasury vault (pnpm setup-squads-treasury), not a per-workflow escrow.
 const DEFAULT_INSTRUCTION = 'Transfer $2000000 to Acme Corp, pending my approval.';
 
 async function main(): Promise<void> {
@@ -68,7 +69,9 @@ async function main(): Promise<void> {
   const guardrailSig = await submitGuardrailCheck(ctx, workflowId, spendCap, vendor);
   console.log(`[4/5] guardrail_check: ${guardrailSig}\n      ${explorerLink(guardrailSig)}`);
 
-  const settlementSig = await submitMockSettlement(ctx, workflowId, vendor);
+  const settlementReference = await completeSettlement(Number(spendCapLamports), vendor);
+  console.log(`      Squads settlement: ${settlementReference}\n      ${explorerLink(settlementReference)}`);
+  const settlementSig = await submitMockSettlement(ctx, workflowId, settlementReference);
   console.log(`[5/5] mock_settlement: ${settlementSig}\n      ${explorerLink(settlementSig)}`);
 
   const workflowAccount = await getWorkflow(ctx, pdas.workflow);

@@ -18,9 +18,6 @@ pub const ATTESTATION_SEED: &[u8] = b"attestation";
 #[constant]
 pub const LEDGER_SEED: &[u8] = b"ledger";
 
-#[constant]
-pub const VAULT_SEED: &[u8] = b"vault";
-
 /// Fixed gate sequence length for every workflow: fetch, compliance/approval, guardrail, settlement.
 /// Kept as a plain Rust const (not `#[constant]`/IDL-exposed, since `usize` isn't a stable IDL
 /// type) and mirrored as a literal in `#[max_len(4)]` attributes in state.rs, since that macro

@@ -16,6 +16,21 @@ redirect a call to a different workflow or payout destination.
 The business-owner signing key lives in `scripts/lib/policyEngineClient.ts` (loaded from
 `wallets/business-owner.json`), used only inside the tool executors — the model never sees it.
 
+## Pause, notify, resume (Phase 4)
+
+If `submit_guardrail_check` comes back over the spend cap, the on-chain workflow moves to
+`PendingOverrideApproval` rather than being rejected outright. `driveWorkflow.ts` detects this,
+pages the Business Owner via Telegram (`scripts/lib/notify.ts`), and **stops** — there is no
+resume/override tool in `src/tools.ts`, so the model has no path to un-pause a workflow itself.
+Only the owner's own signature can, via `pnpm resume-workflow <workflowId> approve|reject`
+(`scripts/devnet/resume-workflow.ts`), run directly by a human, never by the agent.
+
+`submit_mock_settlement`'s executor also now performs the real settlement itself: it calls
+`scripts/lib/squadsClient.ts`'s `completeSettlement` (Squads propose → approve → execute) using
+the pooled treasury from `pnpm setup-squads-treasury`, then attests to the result on-chain. The
+model's tool call shape didn't change — it's still zero arguments — so this doesn't add anything
+to what the model can decide; the harness just does more work underneath that one tool.
+
 ## Usage
 
 ```powershell
@@ -27,8 +42,16 @@ pnpm agent-server
 pnpm scheduled-trigger <workflowId> <invoiceId>
 ```
 
-Requires `ANTHROPIC_API_KEY` (see `.env.example`) to run the agent loop, and
-`HELIUS_WEBHOOK_SECRET` to run the trigger server.
+```powershell
+# Resolve a paused (over-cap) workflow — run by the Business Owner, never by the agent
+pnpm resume-workflow <workflowId> approve
+pnpm resume-workflow <workflowId> reject
+```
+
+Requires `ANTHROPIC_API_KEY` (see `.env.example`) to run the agent loop, `HELIUS_WEBHOOK_SECRET`
+to run the trigger server, `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` for real pause notifications
+(otherwise they just log to console), and a treasury from `pnpm setup-squads-treasury` to settle
+anything.
 
 ## Wiring a real Helius webhook
 
@@ -40,4 +63,4 @@ dashboard create a webhook pointed at `<tunnel-url>/trigger` with a custom Autho
 `Bearer <HELIUS_WEBHOOK_SECRET>`. This registration step is manual/human — it needs a live tunnel
 URL and dashboard access, so it isn't automated here.
 
-**Status: implemented (Phase 3).**
+**Status: implemented (Phase 3 + Phase 4).**

@@ -12,6 +12,6 @@ pub enum ErrorCode {
     WorkflowNotInProgress,
     #[msg("Allowlist exceeds the maximum of 4 entries")]
     AllowlistTooLarge,
-    #[msg("Recipient account does not match the recipient recorded by the guardrail check")]
-    RecipientMismatch,
+    #[msg("Workflow is not paused awaiting an owner override")]
+    NotPendingOverride,
 }

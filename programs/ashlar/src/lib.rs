@@ -60,7 +60,19 @@ pub mod ashlar {
         crate::instructions::guardrail_check::handle_guardrail_check(ctx, workflow_id, amount, recipient)
     }
 
-    pub fn mock_settlement(ctx: Context<MockSettlement>, workflow_id: u64) -> Result<()> {
-        crate::instructions::mock_settlement::handle_mock_settlement(ctx, workflow_id)
+    pub fn mock_settlement(
+        ctx: Context<MockSettlement>,
+        workflow_id: u64,
+        settlement_reference: String,
+    ) -> Result<()> {
+        crate::instructions::mock_settlement::handle_mock_settlement(ctx, workflow_id, settlement_reference)
+    }
+
+    pub fn resume_after_override(
+        ctx: Context<ResumeAfterOverride>,
+        workflow_id: u64,
+        approved: bool,
+    ) -> Result<()> {
+        crate::instructions::resume_after_override::handle_resume_after_override(ctx, workflow_id, approved)
     }
 }

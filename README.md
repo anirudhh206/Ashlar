@@ -135,9 +135,10 @@ Prints the transaction signature and a devnet Explorer link.
 **Deferred:** the Attestation Registry and Ledger use regular rent-paying Anchor PDA accounts, not
 Light Protocol's ZK Compression. Compression is a materially larger integration (light-sdk on the
 program side, stateless.js + a compression-aware indexer on the client side) with no existing
-integration in this repo; deferred to a later hardening pass, same as Squads was deferred to
-Phase 4. Settlement is mocked (a plain lamport transfer from a per-workflow vault PDA standing in
-for a stablecoin unit) — real x402/stablecoin settlement is Phase 5.
+integration in this repo; deferred to a later hardening pass. Settlement amounts are lamports
+standing in for a stablecoin unit — real x402/stablecoin settlement is Phase 5. (Phase 2 originally
+settled via a simple per-workflow vault PDA; Phase 4 replaced that with a real pooled Squads
+treasury — see below.)
 
 ## Phase 3 status
 
@@ -161,6 +162,42 @@ rejection paths (401/400) against a running server. Run `pnpm agent-demo` yourse
 
 **Human action item:** registering a real Helius webhook against `/trigger` needs a running public
 tunnel (e.g. `ngrok http 8787`) and Helius dashboard access — see `agent/README.md`.
+
+## Phase 4 status
+
+- [x] Real Squads multisig treasury (`pnpm setup-squads-treasury`) — a 2-of-2 devnet multisig
+      (business-owner + treasury-placeholder), pooled vault funded once, config persisted to
+      `treasury/squads-treasury.json` (pubkeys only)
+- [x] Settlement now executes through Squads' real propose → approve → execute flow
+      (`scripts/lib/squadsClient.ts`), not a program-signed CPI — verified on devnet via
+      `pnpm deploy-workflow` and the test suite
+- [x] On-chain: an over-cap guardrail failure now **pauses** (`PendingOverrideApproval`) instead
+      of terminally rejecting; a new `resume_after_override` instruction (owner-signed only)
+      resumes or permanently rejects it — an allowlist failure is still terminal `Rejected`
+- [x] Notification Layer (`scripts/lib/notify.ts`) — Telegram; the agent pages the owner and stops
+      when a workflow pauses, with **no** override tool of its own
+- [x] `scripts/devnet/resume-workflow.ts` — the owner's own manual resume/reject path
+      (`pnpm resume-workflow <workflowId> approve|reject`)
+- [x] `tests/policy-engine.ts` — 8 passing cases: both happy paths, over-cap pause (not reject),
+      approval denial, out-of-order rejection, resume-approved completes, resume-rejected stays
+      rejected, non-owner resume attempt fails
+
+**Architectural trade-off (documented, not a bug):** `mock_settlement` no longer moves funds
+itself — only the Squads program can sign for the Squads vault, and only after real member
+approval. The client executes the real Squads transfer first, then calls `mock_settlement` with
+that execution's tx signature as evidence, hashed into the step's `Attestation`. On-chain order is
+still fully enforced; what changed is that "funds moved" is now a verifiable, separately-checkable
+claim rather than an atomic CPI. A tighter version (the Squads vault transaction CPIs into our own
+program) is possible but deferred, same pattern as ZK compression.
+
+**Not yet exercised in this environment:** the actual Telegram delivery and the full
+agent-pauses → notifies → owner-resumes loop, since both need a live `ANTHROPIC_API_KEY` to drive
+the agent (same gap as Phase 3). The on-chain pause/resume mechanics themselves are fully verified
+by the test suite; `scripts/lib/notify.ts` logs clearly to console when Telegram isn't configured,
+so nothing fails silently.
+
+**Human action item:** create a Telegram bot via @BotFather and set `TELEGRAM_BOT_TOKEN`/
+`TELEGRAM_CHAT_ID` in `.env` for real notification delivery — see `.env.example`.
 
 ## Note on Anchor version
 

@@ -1,0 +1,10 @@
+{
+  "multisigPda": "4DMimbZDRpr2f9CwrxWcqKm6csyP7dxifvswRNurSobs",
+  "vaultPda": "HQX26Pc9bZxeHQdcEjzbsCrZks1fcrPReZi2SUW82it2",
+  "createKey": "6RAbrNeRUv3AyZeyPCYNx2b7U2Dk6VMid6YXnRGW7yXf",
+  "threshold": 2,
+  "members": [
+    "Fqqm7w8iWkmf9RYDbiQVwVSdAKkziFjqfG5Cn28CVNjQ",
+    "HH1vAUPGCbpSy3Y7qRvHdJ68cZsgn4o3KDZxKDEe1HP7"
+  ]
+}

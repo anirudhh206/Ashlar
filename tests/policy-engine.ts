@@ -4,6 +4,13 @@ import { readFileSync } from 'node:fs';
 import { assert } from 'chai';
 import { Ashlar } from '../target/types/ashlar';
 
+// mock_settlement's `settlement_reference` arg is only ever hashed as opaque evidence — the
+// on-chain program doesn't validate it. Tests use a placeholder rather than driving a real
+// Squads settlement (already proven end-to-end via `pnpm deploy-workflow`), so the suite stays
+// fast and self-contained without pulling the ESM-only scripts/lib/squadsClient.ts into
+// ts-mocha's CommonJS module graph.
+const FAKE_SETTLEMENT_REFERENCE = 'test-settlement-evidence';
+
 describe('policy-engine', () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.AnchorProvider.env();
@@ -27,10 +34,6 @@ describe('policy-engine', () => {
       [Buffer.from('ledger'), workflow.toBuffer()],
       program.programId,
     );
-    const [vault] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from('vault'), workflow.toBuffer()],
-      program.programId,
-    );
     function attestation(stepIndex: number) {
       const [pda] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from('attestation'), workflow.toBuffer(), Buffer.from([stepIndex])],
@@ -38,7 +41,7 @@ describe('policy-engine', () => {
       );
       return pda;
     }
-    return { workflow, ledger, vault, attestation };
+    return { workflow, ledger, attestation };
   }
 
   async function initWorkflow(
@@ -47,17 +50,17 @@ describe('policy-engine', () => {
     allowlist: anchor.web3.PublicKey[],
   ) {
     const workflowId = nextWorkflowId++;
-    const { workflow, ledger, vault } = pdas(workflowId);
+    const { workflow, ledger } = pdas(workflowId);
     await program.methods
       .initializeWorkflow(new anchor.BN(workflowId.toString()), workflowType, spendCap, allowlist)
-      .accountsPartial({ owner: owner.publicKey, workflow, ledger, vault })
+      .accountsPartial({ owner: owner.publicKey, workflow, ledger })
       .rpc();
-    return { workflowId, workflow, ledger, vault };
+    return { workflowId, workflow, ledger };
   }
 
   it('recurring-conditional-payment: happy path through all 4 gates', async () => {
-    const spendCap = new anchor.BN(2_000_000);
-    const { workflowId, workflow, ledger, vault } = await initWorkflow(
+    const spendCap = new anchor.BN(1_000_000);
+    const { workflowId, workflow, ledger } = await initWorkflow(
       { recurringConditionalPayment: {} },
       spendCap,
       [vendor.publicKey],
@@ -81,15 +84,8 @@ describe('policy-engine', () => {
       .rpc();
 
     await program.methods
-      .mockSettlement(idBN)
-      .accountsPartial({
-        owner: owner.publicKey,
-        workflow,
-        attestation: attestation(3),
-        ledger,
-        vault,
-        recipient: vendor.publicKey,
-      })
+      .mockSettlement(idBN, FAKE_SETTLEMENT_REFERENCE)
+      .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(3), ledger })
       .rpc();
 
     const workflowAccount = await program.account.workflowInstance.fetch(workflow);
@@ -98,11 +94,11 @@ describe('policy-engine', () => {
 
     const ledgerAccount = await program.account.ledger.fetch(ledger);
     assert.equal(ledgerAccount.entries.length, 4);
-  });
+  }).timeout(60_000);
 
   it('one-time-approval-gated-transfer: happy path through all 4 gates', async () => {
-    const spendCap = new anchor.BN(2_000_000);
-    const { workflowId, workflow, ledger, vault } = await initWorkflow(
+    const spendCap = new anchor.BN(1_000_000);
+    const { workflowId, workflow, ledger } = await initWorkflow(
       { oneTimeApprovalGatedTransfer: {} },
       spendCap,
       [vendor.publicKey],
@@ -111,7 +107,7 @@ describe('policy-engine', () => {
     const { attestation } = pdas(workflowId);
 
     await program.methods
-      .fetchStep(idBN, new anchor.BN(2), new anchor.BN(2_000_000))
+      .fetchStep(idBN, new anchor.BN(2), new anchor.BN(1_000_000))
       .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(0), ledger })
       .rpc();
 
@@ -121,27 +117,20 @@ describe('policy-engine', () => {
       .rpc();
 
     await program.methods
-      .guardrailCheck(idBN, new anchor.BN(2_000_000), vendor.publicKey)
+      .guardrailCheck(idBN, new anchor.BN(1_000_000), vendor.publicKey)
       .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(2), ledger })
       .rpc();
 
     await program.methods
-      .mockSettlement(idBN)
-      .accountsPartial({
-        owner: owner.publicKey,
-        workflow,
-        attestation: attestation(3),
-        ledger,
-        vault,
-        recipient: vendor.publicKey,
-      })
+      .mockSettlement(idBN, FAKE_SETTLEMENT_REFERENCE)
+      .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(3), ledger })
       .rpc();
 
     const workflowAccount = await program.account.workflowInstance.fetch(workflow);
     assert.deepEqual(workflowAccount.status, { completed: {} });
-  });
+  }).timeout(60_000);
 
-  it('guardrail rejects an over-cap amount', async () => {
+  it('guardrail pauses (does not reject) an over-cap amount', async () => {
     const spendCap = new anchor.BN(2_000_000);
     const { workflowId, workflow, ledger } = await initWorkflow(
       { oneTimeApprovalGatedTransfer: {} },
@@ -167,7 +156,7 @@ describe('policy-engine', () => {
       .rpc();
 
     const workflowAccount = await program.account.workflowInstance.fetch(workflow);
-    assert.deepEqual(workflowAccount.status, { rejected: {} });
+    assert.deepEqual(workflowAccount.status, { pendingOverrideApproval: {} });
 
     const attestationAccount = await program.account.attestation.fetch(attestation(2));
     assert.deepEqual(attestationAccount.outcome, { failed: {} });
@@ -218,5 +207,88 @@ describe('policy-engine', () => {
       threw = true;
     }
     assert.isTrue(threw, 'expected out-of-order step call to fail');
+  });
+
+  async function pauseOverCapWorkflow() {
+    const spendCap = new anchor.BN(1_000_000);
+    const { workflowId, workflow, ledger } = await initWorkflow(
+      { oneTimeApprovalGatedTransfer: {} },
+      spendCap,
+      [vendor.publicKey],
+    );
+    const idBN = new anchor.BN(workflowId.toString());
+    const { attestation } = pdas(workflowId);
+
+    await program.methods
+      .fetchStep(idBN, new anchor.BN(5), new anchor.BN(1_500_000))
+      .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(0), ledger })
+      .rpc();
+    await program.methods
+      .manualApproval(idBN, true)
+      .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(1), ledger })
+      .rpc();
+    await program.methods
+      .guardrailCheck(idBN, new anchor.BN(1_500_000), vendor.publicKey)
+      .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(2), ledger })
+      .rpc();
+
+    return { idBN, workflowId, workflow, ledger, attestation };
+  }
+
+  it('resume_after_override(approved=true) resumes and completes the workflow', async () => {
+    const { idBN, workflow, ledger, attestation } = await pauseOverCapWorkflow();
+
+    await program.methods
+      .resumeAfterOverride(idBN, true)
+      .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(2), ledger })
+      .rpc();
+
+    let workflowAccount = await program.account.workflowInstance.fetch(workflow);
+    assert.deepEqual(workflowAccount.status, { inProgress: {} });
+    assert.equal(workflowAccount.currentStep, 3);
+
+    
+    await program.methods
+      .mockSettlement(idBN, FAKE_SETTLEMENT_REFERENCE)
+      .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(3), ledger })
+      .rpc();
+
+    workflowAccount = await program.account.workflowInstance.fetch(workflow);
+    assert.deepEqual(workflowAccount.status, { completed: {} });
+
+    const ledgerAccount = await program.account.ledger.fetch(ledger);
+    assert.equal(ledgerAccount.entries.length, 4);
+    assert.deepEqual(ledgerAccount.entries[2].outcome, { passed: {} });
+  }).timeout(60_000);
+
+  it('resume_after_override(approved=false) leaves the workflow permanently rejected', async () => {
+    const { idBN, workflow, ledger, attestation } = await pauseOverCapWorkflow();
+
+    await program.methods
+      .resumeAfterOverride(idBN, false)
+      .accountsPartial({ owner: owner.publicKey, workflow, attestation: attestation(2), ledger })
+      .rpc();
+
+    const workflowAccount = await program.account.workflowInstance.fetch(workflow);
+    assert.deepEqual(workflowAccount.status, { rejected: {} });
+  });
+
+  it('a non-owner cannot resume a paused workflow', async () => {
+    const { idBN, workflow, ledger, attestation } = await pauseOverCapWorkflow();
+
+    let threw = false;
+    try {
+      await program.methods
+        .resumeAfterOverride(idBN, true)
+        .accountsPartial({ owner: vendor.publicKey, workflow, attestation: attestation(2), ledger })
+        .signers([vendor])
+        .rpc();
+    } catch {
+      threw = true;
+    }
+    assert.isTrue(threw, 'expected a non-owner resume attempt to fail');
+
+    const workflowAccount = await program.account.workflowInstance.fetch(workflow);
+    assert.deepEqual(workflowAccount.status, { pendingOverrideApproval: {} });
   });
 });

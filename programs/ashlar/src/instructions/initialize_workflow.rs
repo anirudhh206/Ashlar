@@ -23,14 +23,6 @@ pub struct InitializeWorkflow<'info> {
         bump
     )]
     pub ledger: Account<'info, Ledger>,
-    /// CHECK: plain lamport vault, funded here and paid out from in `mock_settlement`; holds
-    /// no Anchor account data.
-    #[account(
-        mut,
-        seeds = [VAULT_SEED, workflow.key().as_ref()],
-        bump
-    )]
-    pub vault: SystemAccount<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -58,13 +50,6 @@ pub fn handle_initialize_workflow(
         ],
     };
 
-    let cpi_accounts = anchor_lang::system_program::Transfer {
-        from: ctx.accounts.owner.to_account_info(),
-        to: ctx.accounts.vault.to_account_info(),
-    };
-    let cpi_ctx = CpiContext::new(anchor_lang::system_program::ID, cpi_accounts);
-    anchor_lang::system_program::transfer(cpi_ctx, spend_cap)?;
-
     let workflow = &mut ctx.accounts.workflow;
     workflow.owner = ctx.accounts.owner.key();
     workflow.workflow_id = workflow_id;
@@ -77,13 +62,12 @@ pub fn handle_initialize_workflow(
     workflow.pending_amount = 0;
     workflow.pending_recipient = Pubkey::default();
     workflow.bump = ctx.bumps.workflow;
-    workflow.vault_bump = ctx.bumps.vault;
 
     ctx.accounts.ledger.workflow = workflow.key();
     ctx.accounts.ledger.entries = Vec::new();
 
     msg!(
-        "Workflow {} initialized ({:?}), vault funded with {} lamports",
+        "Workflow {} initialized ({:?}), spend cap {} lamports",
         workflow_id,
         workflow.workflow_type,
         spend_cap

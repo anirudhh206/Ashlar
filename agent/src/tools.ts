@@ -14,12 +14,15 @@ import type { PublicKey } from '@solana/web3.js';
 import { getMockInvoice } from './mockInvoices.js';
 import {
   type PolicyEngineContext,
+  deriveWorkflowPdas,
+  getWorkflow,
   submitFetchStep,
   submitComplianceOrApprovalDecision,
   submitGuardrailCheck,
   submitMockSettlement,
   explorerLink,
 } from '../../scripts/lib/policyEngineClient.js';
+import { completeSettlement } from '../../scripts/lib/squadsClient.js';
 
 export const TOOLS: Anthropic.Tool[] = [
   {
@@ -118,8 +121,13 @@ export function createToolExecutor(
         return { signature, explorer: explorerLink(signature) };
       }
       case 'submit_mock_settlement': {
-        const signature = await submitMockSettlement(ctx, workflowId, recipient);
-        return { signature, explorer: explorerLink(signature) };
+        // Real fund movement happens here, through Squads' own propose/approve/execute flow —
+        // the harness does this, never the model. mock_settlement then just attests to it.
+        const pdas = deriveWorkflowPdas(ctx.program.programId, ctx.owner.publicKey, workflowId);
+        const workflow = await getWorkflow(ctx, pdas.workflow);
+        const settlementReference = await completeSettlement(Number(workflow.pendingAmount), recipient);
+        const signature = await submitMockSettlement(ctx, workflowId, settlementReference);
+        return { signature, settlementReference, explorer: explorerLink(signature) };
       }
       default:
         return { error: `Unknown tool: ${name}` };

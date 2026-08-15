@@ -8,9 +8,13 @@ import * as multisig from '@sqds/multisig';
 import {
   Connection,
   Keypair,
+  LAMPORTS_PER_SOL,
   PublicKey,
   SystemProgram,
+  Transaction,
   TransactionMessage,
+  sendAndConfirmTransaction,
+  type VersionedTransaction,
 } from '@solana/web3.js';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -58,6 +62,68 @@ export function getConnection(): Connection {
   return new Connection(DEVNET_URL, 'confirmed');
 }
 
+const VAULT_FUNDING_SOL = 0.5;
+
+/** Creates a real devnet Squads multisig (2-of-2, business-owner + treasury-placeholder) and
+ * funds its vault. Used by both `pnpm setup-squads-treasury` and (idempotently) by the test
+ * suite's `before()` hook, so tests stay a single self-contained command. */
+export async function createTreasuryConfig(): Promise<TreasuryConfig> {
+  const connection = getConnection();
+  const { businessOwner, treasuryPlaceholder } = loadTreasuryMembers();
+
+  const createKey = Keypair.generate();
+  const [multisigPda] = multisig.getMultisigPda({ createKey: createKey.publicKey });
+
+  const programConfigPda = multisig.getProgramConfigPda({})[0];
+  const programConfig = await multisig.accounts.ProgramConfig.fromAccountAddress(
+    connection,
+    programConfigPda,
+  );
+
+  const createSig = await multisig.rpc.multisigCreateV2({
+    connection,
+    createKey,
+    creator: businessOwner,
+    multisigPda,
+    configAuthority: null,
+    threshold: 2,
+    members: [
+      { key: businessOwner.publicKey, permissions: multisig.types.Permissions.all() },
+      { key: treasuryPlaceholder.publicKey, permissions: multisig.types.Permissions.all() },
+    ],
+    timeLock: 0,
+    rentCollector: null,
+    treasury: programConfig.treasury,
+  });
+  await connection.confirmTransaction(createSig, 'confirmed');
+
+  const [vaultPda] = multisig.getVaultPda({ multisigPda, index: 0 });
+
+  const fundTx = new Transaction().add(
+    SystemProgram.transfer({
+      fromPubkey: businessOwner.publicKey,
+      toPubkey: vaultPda,
+      lamports: Math.round(VAULT_FUNDING_SOL * LAMPORTS_PER_SOL),
+    }),
+  );
+  await sendAndConfirmTransaction(connection, fundTx, [businessOwner], { commitment: 'confirmed' });
+
+  const config: TreasuryConfig = {
+    multisigPda: multisigPda.toBase58(),
+    vaultPda: vaultPda.toBase58(),
+    createKey: createKey.publicKey.toBase58(),
+    threshold: 2,
+    members: [businessOwner.publicKey.toBase58(), treasuryPlaceholder.publicKey.toBase58()],
+  };
+  saveTreasuryConfig(config);
+  return config;
+}
+
+export async function ensureTreasuryConfig(): Promise<TreasuryConfig> {
+  if (existsSync(TREASURY_CONFIG_PATH)) return loadTreasuryConfig();
+  return createTreasuryConfig();
+}
+
 /**
  * Creates, approves (as both members), and executes a Squads vault transaction that transfers
  * `amountLamports` from the pooled treasury vault to `recipient`. Returns the execution tx
@@ -88,15 +154,22 @@ export async function completeSettlement(
     instructions: [transferIx],
   });
 
-  async function confirm(signature: string): Promise<string> {
+  // Build, sign, and send each step's transaction manually via the SDK's low-level
+  // `transactions.*` builders rather than its `rpc.*` wrappers — the wrappers' error-translation
+  // path has a bug in this SDK version (tries to assign a getter-only `.logs` property on newer
+  // @solana/web3.js SendTransactionError instances), which masks the real on-chain error.
+  async function sign(tx: VersionedTransaction, signers: Keypair[]): Promise<string> {
+    tx.sign(signers);
+    const signature = await connection.sendTransaction(tx);
     await connection.confirmTransaction(signature, 'confirmed');
     return signature;
   }
 
-  await confirm(
-    await multisig.rpc.vaultTransactionCreate({
-      connection,
-      feePayer: businessOwner,
+  const blockhash1 = (await connection.getLatestBlockhash()).blockhash;
+  await sign(
+    multisig.transactions.vaultTransactionCreate({
+      blockhash: blockhash1,
+      feePayer: businessOwner.publicKey,
       multisigPda,
       transactionIndex,
       creator: businessOwner.publicKey,
@@ -104,46 +177,53 @@ export async function completeSettlement(
       ephemeralSigners: 0,
       transactionMessage,
     }),
+    [businessOwner],
   );
 
-  await confirm(
-    await multisig.rpc.proposalCreate({
-      connection,
-      feePayer: businessOwner,
-      creator: businessOwner,
+  const blockhash2 = (await connection.getLatestBlockhash()).blockhash;
+  await sign(
+    multisig.transactions.proposalCreate({
+      blockhash: blockhash2,
+      feePayer: businessOwner.publicKey,
       multisigPda,
       transactionIndex,
+      creator: businessOwner.publicKey,
     }),
+    [businessOwner],
   );
 
-  await confirm(
-    await multisig.rpc.proposalApprove({
-      connection,
-      feePayer: businessOwner,
-      member: businessOwner,
+  const blockhash3 = (await connection.getLatestBlockhash()).blockhash;
+  await sign(
+    multisig.transactions.proposalApprove({
+      blockhash: blockhash3,
+      feePayer: businessOwner.publicKey,
       multisigPda,
       transactionIndex,
+      member: businessOwner.publicKey,
     }),
+    [businessOwner],
   );
 
-  await confirm(
-    await multisig.rpc.proposalApprove({
-      connection,
-      feePayer: treasuryPlaceholder,
-      member: treasuryPlaceholder,
+  const blockhash4 = (await connection.getLatestBlockhash()).blockhash;
+  await sign(
+    multisig.transactions.proposalApprove({
+      blockhash: blockhash4,
+      feePayer: treasuryPlaceholder.publicKey,
       multisigPda,
       transactionIndex,
+      member: treasuryPlaceholder.publicKey,
     }),
+    [treasuryPlaceholder],
   );
 
-  const executeSignature = await multisig.rpc.vaultTransactionExecute({
+  const blockhash5 = (await connection.getLatestBlockhash()).blockhash;
+  const executeTx = await multisig.transactions.vaultTransactionExecute({
     connection,
-    feePayer: businessOwner,
+    blockhash: blockhash5,
+    feePayer: businessOwner.publicKey,
     multisigPda,
     transactionIndex,
     member: businessOwner.publicKey,
   });
-  await confirm(executeSignature);
-
-  return executeSignature;
+  return sign(executeTx, [businessOwner]);
 }

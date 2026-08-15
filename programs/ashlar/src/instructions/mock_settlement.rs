@@ -25,20 +25,20 @@ pub struct MockSettlement<'info> {
     pub attestation: Account<'info, Attestation>,
     #[account(mut, seeds = [LEDGER_SEED, workflow.key().as_ref()], bump)]
     pub ledger: Account<'info, Ledger>,
-    #[account(
-        mut,
-        seeds = [VAULT_SEED, workflow.key().as_ref()],
-        bump = workflow.vault_bump,
-    )]
-    pub vault: SystemAccount<'info>,
-    /// CHECK: the recipient recorded by `guardrail_check`; validated below against
-    /// `workflow.pending_recipient` rather than via an Anchor account constraint.
-    #[account(mut)]
-    pub recipient: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
 }
 
-pub fn handle_mock_settlement(ctx: Context<MockSettlement>, _workflow_id: u64) -> Result<()> {
+/// Records that settlement happened — it does not move funds itself. Real custody now lives in
+/// a Squads multisig vault (Phase 4), which only the Squads program can sign for; the actual
+/// transfer is executed off-chain via Squads' propose/approve/execute flow (see
+/// scripts/lib/squadsClient.ts) *before* this instruction is called. `settlement_reference` (the
+/// Squads execution tx signature) is hashed into this step's Attestation as evidence, the same
+/// way every other step's instruction-specific data already is.
+pub fn handle_mock_settlement(
+    ctx: Context<MockSettlement>,
+    _workflow_id: u64,
+    settlement_reference: String,
+) -> Result<()> {
     let workflow = &mut ctx.accounts.workflow;
     require!(
         workflow.status == WorkflowStatus::InProgress,
@@ -48,38 +48,17 @@ pub fn handle_mock_settlement(ctx: Context<MockSettlement>, _workflow_id: u64) -
         workflow.steps.get(workflow.current_step as usize) == Some(&StepKind::MockSettlement),
         ErrorCode::OutOfOrderStep
     );
-    require_keys_eq!(
-        ctx.accounts.recipient.key(),
-        workflow.pending_recipient,
-        ErrorCode::RecipientMismatch
-    );
-
-    let workflow_key = workflow.key();
-    let vault_bump = workflow.vault_bump;
-    let amount = workflow.pending_amount;
-
-    let seeds: &[&[u8]] = &[VAULT_SEED, workflow_key.as_ref(), &[vault_bump]];
-    let signer_seeds: &[&[&[u8]]] = &[seeds];
-
-    let cpi_accounts = anchor_lang::system_program::Transfer {
-        from: ctx.accounts.vault.to_account_info(),
-        to: ctx.accounts.recipient.to_account_info(),
-    };
-    let cpi_ctx = CpiContext::new_with_signer(
-        anchor_lang::system_program::ID,
-        cpi_accounts,
-        signer_seeds,
-    );
-    anchor_lang::system_program::transfer(cpi_ctx, amount)?;
 
     let clock = Clock::get()?;
+    let amount = workflow.pending_amount;
     let mut data = amount.to_le_bytes().to_vec();
-    data.extend_from_slice(ctx.accounts.recipient.key().as_ref());
+    data.extend_from_slice(workflow.pending_recipient.as_ref());
+    data.extend_from_slice(settlement_reference.as_bytes());
 
     attest_and_log(
         &mut ctx.accounts.attestation,
         &mut ctx.accounts.ledger,
-        workflow_key,
+        workflow.key(),
         workflow.current_step,
         StepKind::MockSettlement,
         ctx.accounts.owner.key(),
@@ -90,6 +69,11 @@ pub fn handle_mock_settlement(ctx: Context<MockSettlement>, _workflow_id: u64) -
 
     workflow.current_step += 1;
     workflow.status = WorkflowStatus::Completed;
-    msg!("Mock settlement executed: {} lamports to {}", amount, ctx.accounts.recipient.key());
+    msg!(
+        "Settlement attested: {} lamports to {} (Squads tx {})",
+        amount,
+        workflow.pending_recipient,
+        settlement_reference
+    );
     Ok(())
 }

@@ -8,6 +8,7 @@ pub mod compliance_check;
 pub mod manual_approval;
 pub mod guardrail_check;
 pub mod mock_settlement;
+pub mod resume_after_override;
 
 pub use initialize::*;
 pub use increment::*;
@@ -18,3 +19,4 @@ pub use compliance_check::*;
 pub use manual_approval::*;
 pub use guardrail_check::*;
 pub use mock_settlement::*;
+pub use resume_after_override::*;
