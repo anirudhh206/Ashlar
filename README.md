@@ -139,6 +139,29 @@ integration in this repo; deferred to a later hardening pass, same as Squads was
 Phase 4. Settlement is mocked (a plain lamport transfer from a per-workflow vault PDA standing in
 for a stablecoin unit) — real x402/stablecoin settlement is Phase 5.
 
+## Phase 3 status
+
+- [x] Tool-calling harness (`agent/src/tools.ts`): 5 Claude tool schemas, one read-only invoice
+      lookup + four wrappers each mapping to exactly one on-chain Policy Engine instruction
+- [x] `agent/src/driveWorkflow.ts` — real Claude tool-use loop (not mocked), `workflowId`/
+      `recipient` bound by the harness rather than model-supplied, 10-turn safety cap
+- [x] `agent/src/server.ts` — `POST /trigger` endpoint, shared-secret auth (verified: rejects
+      unauthenticated and wrong-secret requests with 401, malformed bodies with 400)
+- [x] `scripts/devnet/scheduled-trigger.ts` — calendar-cadence trigger via the same endpoint
+- [x] `scripts/devnet/run-agent-demo.ts` — initializes a fresh workflow and hands it to the agent
+- [x] Shared `scripts/lib/policyEngineClient.ts` extracted from Phase 2's `deploy-workflow.ts`, now
+      reused by both the CLI script and the agent's tools
+
+**Not yet run end-to-end:** `pnpm agent-demo` and the live trigger flow require a real
+`ANTHROPIC_API_KEY` (see `.env.example`), which wasn't available in the environment this was built
+in. Everything not gated on that key was verified directly: typecheck, lint, the refactored
+`deploy-workflow.ts` still completing a full workflow on devnet, and the trigger server's auth
+rejection paths (401/400) against a running server. Run `pnpm agent-demo` yourself once
+`ANTHROPIC_API_KEY` is set to see the live agent loop.
+
+**Human action item:** registering a real Helius webhook against `/trigger` needs a running public
+tunnel (e.g. `ngrok http 8787`) and Helius dashboard access — see `agent/README.md`.
+
 ## Note on Anchor version
 
 This repo uses Anchor CLI 1.1.2 (via WSL2's `avm`), which differs from the 0.30.1-era project
