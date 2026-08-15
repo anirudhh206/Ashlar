@@ -23,6 +23,8 @@ import {
   explorerLink,
 } from '../../scripts/lib/policyEngineClient.js';
 import { executeSplitSettlement } from '../../scripts/lib/splitSettlement.js';
+import { mintReceipt, buildReceiptNotification } from '../../scripts/lib/receiptClient.js';
+import { notifyOwner } from '../../scripts/lib/notify.js';
 
 export const TOOLS: Anthropic.Tool[] = [
   {
@@ -132,7 +134,9 @@ export function createToolExecutor(
           recipient,
         );
         const signature = await submitMockSettlement(ctx, workflowId, onChainReference);
-        return { signature, evidence, explorer: explorerLink(signature) };
+        const receipt = await mintReceipt(ctx.owner.secretKey, workflowId.toString(), evidence);
+        await notifyOwner(buildReceiptNotification(workflowId.toString(), receipt));
+        return { signature, evidence, receipt, explorer: explorerLink(signature) };
       }
       default:
         return { error: `Unknown tool: ${name}` };

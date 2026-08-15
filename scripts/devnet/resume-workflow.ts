@@ -16,6 +16,8 @@ import {
   explorerLink,
 } from '../lib/policyEngineClient.js';
 import { executeSplitSettlement } from '../lib/splitSettlement.js';
+import { mintReceipt, buildReceiptNotification } from '../lib/receiptClient.js';
+import { notifyOwner } from '../lib/notify.js';
 
 async function main(): Promise<void> {
   const [workflowIdRaw, decisionRaw] = process.argv.slice(2);
@@ -61,6 +63,10 @@ async function main(): Promise<void> {
 
   const settlementSig = await submitMockSettlement(ctx, workflowId, onChainReference);
   console.log(`mock_settlement: ${settlementSig}\n${explorerLink(settlementSig)}`);
+
+  const receipt = await mintReceipt(ctx.owner.secretKey, workflowIdRaw, evidence);
+  console.log(`Receipt minted: ${receipt.assetId}\n${receipt.explorerLink}`);
+  await notifyOwner(buildReceiptNotification(workflowIdRaw, receipt));
 
   const after = await getWorkflow(ctx, workflowPda);
   console.log(`\nFinal status: ${JSON.stringify(after.status)}`);

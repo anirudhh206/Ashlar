@@ -28,11 +28,22 @@ Only the owner's own signature can, via `pnpm resume-workflow <workflowId> appro
 `submit_mock_settlement`'s executor also now performs the real settlement itself: it calls
 `scripts/lib/splitSettlement.ts`'s `executeSplitSettlement` (Phase 5 — a Pyth-priced 85/10/5 split
 across vendor/tax-reserve/yield-pool, vendor leg paid via real x402 rails), then attests to the
-result on-chain. The model's tool call shape didn't change — it's still zero arguments — so this
-doesn't add anything to what the model can decide; the harness just does more work underneath that
-one tool. Phase 4's Squads multisig treasury still exists and still governs pause/notify/resume
-authorization (below) — it's a separate track from Phase 5's settlement funding source (see
-README.md's Phase 5 section for why).
+result on-chain, then mints the completion receipt and notifies the owner (Phase 7 — see below).
+The model's tool call shape didn't change — it's still zero arguments — so this doesn't add
+anything to what the model can decide; the harness just does more work underneath that one tool.
+Phase 4's Squads multisig treasury still exists and still governs pause/notify/resume authorization
+(below) — it's a separate track from Phase 5's settlement funding source (see README.md's Phase 5
+section for why).
+
+## Receipt & final notification (Phase 7)
+
+Once `mock_settlement` lands, the same executor calls `scripts/lib/receiptClient.ts`'s
+`mintReceipt` — a real compressed NFT (Metaplex Bubblegum), grouped under the shared "Ashlar
+Receipts" collection (`pnpm setup-receipt-collection`, one-time setup), minted directly into the
+Business Owner's wallet, with metadata uploaded to real Arweave storage via Irys. It then pages the
+owner via the same Telegram layer used for pause notifications (`scripts/lib/notify.ts`) with the
+receipt's asset ID and an Explorer link — the roadmap's "Owner Receives Final Receipt"
+notification.
 
 ## Usage
 
@@ -66,4 +77,4 @@ dashboard create a webhook pointed at `<tunnel-url>/trigger` with a custom Autho
 `Bearer <HELIUS_WEBHOOK_SECRET>`. This registration step is manual/human — it needs a live tunnel
 URL and dashboard access, so it isn't automated here.
 
-**Status: implemented (Phase 3 + Phase 4 + Phase 5).**
+**Status: implemented (Phase 3 + Phase 4 + Phase 5 + Phase 7).**

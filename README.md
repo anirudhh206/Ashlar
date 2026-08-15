@@ -289,6 +289,40 @@ SOL. See `.env.example` for the x402 vendor server's config.
 design; the core `verifyWorkflow` logic is already split out in `verifier/src/index.ts` so a
 future web page can reuse it directly).
 
+## Phase 7 status
+
+- [x] **Real compressed-NFT receipt minting** (`scripts/lib/receiptClient.ts`) — every completed
+      workflow mints a real compressed NFT (Metaplex Bubblegum) into the Business Owner's wallet,
+      grouped under a verified "Ashlar Receipts" collection (`pnpm setup-receipt-collection`, a
+      one-time setup mirroring the Squads-treasury/agent-identity pattern). Metadata is uploaded to
+      real Arweave storage via Irys (Umi's `irysUploader()`), not a `data:` URI — this is the one
+      piece of metadata across Phases 5-7 explicitly meant to be seen by a human in Phantom or
+      Explorer, so it uses real permanent hosting rather than the zero-infra shortcut used
+      elsewhere. Zero changes to `programs/ashlar` — Bubblegum is Metaplex's own deployed program;
+      minting is a pure client-side step after `mock_settlement` lands.
+- [x] **Owner Receives Final Receipt notification** — reuses Phase 4's Telegram notification layer
+      (`scripts/lib/notify.ts`) rather than adding a new channel; the message includes the
+      receipt's asset ID and a direct Explorer link.
+- [x] Wired into all three settlement call sites (`scripts/devnet/deploy-workflow.ts`,
+      `agent/src/tools.ts`'s `submit_mock_settlement`, `scripts/devnet/resume-workflow.ts`'s
+      post-override path) — the same three places Phase 5's split settlement lives, so there's one
+      settlement-completion path, not several.
+- [x] Verified against real devnet, not just typechecked: the Merkle tree and collection NFT are
+      real, confirmed accounts on devnet (owner programs checked directly); a standalone
+      `mintReceipt` call produced a real compressed NFT, a real derived asset ID, and metadata
+      genuinely fetchable from Irys's gateway with the full settlement evidence embedded.
+- [x] One real bug found and fixed: Token Metadata's on-chain `name` field has a strict 32-byte
+      limit — confirmed against real devnet (`MetadataNameTooLong`) — fixed by keeping the
+      on-chain name short and fixed, with the workflow id living in the (unlimited) off-chain
+      metadata JSON instead. Also confirmed empirically (not assumed) that reading back a
+      just-landed mint transaction via Bubblegum's leaf-parsing helper needs a real retry budget
+      past the first few seconds, same propagation-lag pattern seen in earlier phases.
+
+**Not yet exercised in this environment:** the full `pnpm deploy-workflow` path actually reaching
+and minting a receipt, since that requires reaching `mock_settlement`, which is still gated on
+Phase 5's pending USDC-devnet funding human action item (see Phase 5 status above) — not a new gap
+introduced by this phase.
+
 ## Note on Anchor version
 
 This repo uses Anchor CLI 1.1.2 (via WSL2's `avm`), which differs from the 0.30.1-era project

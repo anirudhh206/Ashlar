@@ -22,6 +22,8 @@ import {
   type WorkflowTypeArg,
 } from '../lib/policyEngineClient.js';
 import { executeSplitSettlement } from '../lib/splitSettlement.js';
+import { mintReceipt, buildReceiptNotification } from '../lib/receiptClient.js';
+import { notifyOwner } from '../lib/notify.js';
 
 // The compiled amount is treated as a USD figure (the compiler already tags it `currency:
 // 'USDC'`) and split 85/10/5 across vendor/tax-reserve/yield-pool via real Phase 5 rails — see
@@ -79,6 +81,10 @@ async function main(): Promise<void> {
     `${evidence.splits.taxReserveUsdcAtomic} / yield-pool ${evidence.splits.yieldPoolUsdcAtomic} (USDC atomic units)`);
   const settlementSig = await submitMockSettlement(ctx, workflowId, onChainReference);
   console.log(`[5/5] mock_settlement: ${settlementSig}\n      ${explorerLink(settlementSig)}`);
+
+  const receipt = await mintReceipt(ctx.owner.secretKey, workflowId.toString(), evidence);
+  console.log(`\nReceipt minted: ${receipt.assetId}\n      ${receipt.explorerLink}`);
+  await notifyOwner(buildReceiptNotification(workflowId.toString(), receipt));
 
   const workflowAccount = await getWorkflow(ctx, pdas.workflow);
   const ledgerAccount = await getLedger(ctx, pdas.ledger);

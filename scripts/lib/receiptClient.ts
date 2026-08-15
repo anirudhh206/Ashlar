@@ -49,7 +49,7 @@ export interface ReceiptResult {
 export async function mintReceipt(
   businessOwnerSecret: Uint8Array,
   workflowId: string,
-  evidence: Record<string, unknown>,
+  evidence: unknown,
 ): Promise<ReceiptResult> {
   const { merkleTree, collectionMint } = loadReceiptCollectionConfig();
   const umi = createReceiptUmi(businessOwnerSecret).use(mplBubblegum());
@@ -111,4 +111,15 @@ export async function mintReceipt(
     explorerLink: `https://explorer.solana.com/address/${assetId[0].toString()}?cluster=devnet`,
     metadataUri,
   };
+}
+
+/** The "Owner Receives Final Receipt" notification text — shared across every call site that
+ * completes a settlement, so the message format stays in one place. */
+export function buildReceiptNotification(workflowId: string, receipt: ReceiptResult): string {
+  return (
+    `Workflow ${workflowId} completed — receipt minted.\n` +
+    `Asset: ${receipt.assetId}\n` +
+    `${receipt.explorerLink}\n` +
+    `View it in Phantom, or via Solana Explorer above.`
+  );
 }
