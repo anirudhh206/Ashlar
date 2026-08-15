@@ -19,10 +19,10 @@ import {
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { REPO_ROOT } from './policyEngineClient.js';
+import { DEVNET_URL } from './constants.js';
 
 const TREASURY_DIR = path.join(REPO_ROOT, 'treasury');
 const TREASURY_CONFIG_PATH = path.join(TREASURY_DIR, 'squads-treasury.json');
-const DEVNET_URL = 'https://api.devnet.solana.com';
 
 export interface TreasuryConfig {
   multisigPda: string;

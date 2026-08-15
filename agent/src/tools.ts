@@ -22,7 +22,7 @@ import {
   submitMockSettlement,
   explorerLink,
 } from '../../scripts/lib/policyEngineClient.js';
-import { completeSettlement } from '../../scripts/lib/squadsClient.js';
+import { executeSplitSettlement } from '../../scripts/lib/splitSettlement.js';
 
 export const TOOLS: Anthropic.Tool[] = [
   {
@@ -45,7 +45,7 @@ export const TOOLS: Anthropic.Tool[] = [
       type: 'object',
       properties: {
         invoiceId: { type: 'integer' },
-        amount: { type: 'integer', description: 'Invoice amount in lamports.' },
+        amount: { type: 'integer', description: 'Invoice amount in USD.' },
       },
       required: ['invoiceId', 'amount'],
     },
@@ -69,7 +69,7 @@ export const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        amount: { type: 'integer', description: 'Amount in lamports to check against the spend cap.' },
+        amount: { type: 'integer', description: 'Amount in USD to check against the spend cap.' },
       },
       required: ['amount'],
     },
@@ -121,13 +121,18 @@ export function createToolExecutor(
         return { signature, explorer: explorerLink(signature) };
       }
       case 'submit_mock_settlement': {
-        // Real fund movement happens here, through Squads' own propose/approve/execute flow —
-        // the harness does this, never the model. mock_settlement then just attests to it.
+        // Real fund movement happens here — a Pyth-priced 85/10/5 split across vendor (paid via
+        // real x402 rails), tax-reserve, and yield-pool — before mock_settlement attests to it.
+        // The harness does this, never the model.
         const pdas = deriveWorkflowPdas(ctx.program.programId, ctx.owner.publicKey, workflowId);
         const workflow = await getWorkflow(ctx, pdas.workflow);
-        const settlementReference = await completeSettlement(Number(workflow.pendingAmount), recipient);
-        const signature = await submitMockSettlement(ctx, workflowId, settlementReference);
-        return { signature, settlementReference, explorer: explorerLink(signature) };
+        const { evidence, onChainReference } = await executeSplitSettlement(
+          workflowId.toString(),
+          workflow.pendingAmount.toNumber(),
+          recipient,
+        );
+        const signature = await submitMockSettlement(ctx, workflowId, onChainReference);
+        return { signature, evidence, explorer: explorerLink(signature) };
       }
       default:
         return { error: `Unknown tool: ${name}` };

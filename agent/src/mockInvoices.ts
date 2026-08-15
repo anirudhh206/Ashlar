@@ -1,6 +1,8 @@
 /**
  * Stand-in for a real invoicing system — the "fake invoice" data Phase 2's own done-when
- * criterion already assumes. Amounts are lamports (Phase 2's mock currency unit).
+ * criterion already assumes. Amounts are USD (Phase 5's splitSettlement prices and pays these
+ * out in real devnet USDC via live Pyth pricing — see scripts/lib/splitSettlement.ts — so these
+ * stay small, realistically fundable figures rather than Phase 2's original mock lamport units).
  */
 export interface MockInvoice {
   id: number;
@@ -10,9 +12,9 @@ export interface MockInvoice {
 }
 
 const MOCK_INVOICES: MockInvoice[] = [
-  { id: 1, amount: 2_000_000, vendor: 'Acme Corp', status: 'approved' },
-  { id: 2, amount: 1_500_000, vendor: 'Acme Corp', status: 'approved' },
-  { id: 3, amount: 750_000, vendor: 'Widget Co', status: 'pending' },
+  { id: 1, amount: 5, vendor: 'Acme Corp', status: 'approved' },
+  { id: 2, amount: 3, vendor: 'Acme Corp', status: 'approved' },
+  { id: 3, amount: 10, vendor: 'Widget Co', status: 'pending' },
 ];
 
 export function getMockInvoice(id: number): MockInvoice | undefined {

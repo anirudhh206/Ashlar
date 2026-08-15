@@ -18,10 +18,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const WALLETS_DIR = path.join(REPO_ROOT, 'wallets');
 const MANIFEST_PATH = path.join(WALLETS_DIR, 'manifest.json');
+// Deliberately always the public endpoint, not HELIUS_RPC_URL like scripts/lib/constants.ts's
+// DEVNET_URL — paid RPC providers (including Helius) generally don't implement requestAirdrop,
+// since that's specifically the public faucet's job.
 const DEVNET_URL = 'https://api.devnet.solana.com';
 const AIRDROP_SOL = 2;
 
-const ROLES = [
+interface RoleDefinition {
+  role: string;
+  file: string;
+  note?: string;
+}
+
+const ROLES: RoleDefinition[] = [
   { role: 'business-owner', file: 'business-owner.json' },
   {
     role: 'treasury-placeholder',
@@ -30,7 +39,22 @@ const ROLES = [
   },
   { role: 'test-vendor', file: 'test-vendor.json' },
   { role: 'adversarial', file: 'adversarial.json' },
-] as const;
+  {
+    role: 'tax-reserve-placeholder',
+    file: 'tax-reserve-placeholder.json',
+    note: 'stand-in destination for the tax-reserve leg of split settlement (Phase 5)',
+  },
+  {
+    role: 'yield-pool-placeholder',
+    file: 'yield-pool-placeholder.json',
+    note: 'stand-in destination for the yield-pool leg of split settlement, not a real lending-protocol deposit (Phase 5)',
+  },
+  {
+    role: 'agent-identity',
+    file: 'agent-identity.json',
+    note: 'registered on-chain via MPL Agent Registry to verify the agent has a real identity (Phase 5)',
+  },
+];
 
 interface ManifestEntry {
   role: string;

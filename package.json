@@ -11,6 +11,8 @@
     "hello-world": "tsx scripts/devnet/call-hello-world.ts",
     "deploy-workflow": "tsx scripts/devnet/deploy-workflow.ts",
     "setup-squads-treasury": "tsx scripts/devnet/setup-squads-treasury.ts",
+    "x402-vendor-server": "tsx scripts/devnet/x402-vendor-server.ts",
+    "register-agent-identity": "tsx scripts/devnet/register-agent-identity.ts",
     "resume-workflow": "tsx --env-file-if-exists=.env scripts/devnet/resume-workflow.ts",
     "agent-server": "tsx --env-file-if-exists=.env agent/src/server.ts",
     "agent-demo": "tsx --env-file-if-exists=.env scripts/devnet/run-agent-demo.ts",
@@ -38,8 +40,10 @@
     "@metaplex-foundation/mpl-agent-registry": "^0.2.6",
     "@metaplex-foundation/umi": "^1.5.1",
     "@metaplex-foundation/umi-bundle-defaults": "^1.5.1",
+    "@solana/spl-token": "^0.4.15",
     "@solana/web3.js": "^1.98.0",
     "@sqds/multisig": "^2.1.4",
+    "bs58": "^6.0.0",
     "tweetnacl": "^1.0.3",
     "x402-solana": "^3.0.0"
   }

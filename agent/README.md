@@ -26,10 +26,13 @@ Only the owner's own signature can, via `pnpm resume-workflow <workflowId> appro
 (`scripts/devnet/resume-workflow.ts`), run directly by a human, never by the agent.
 
 `submit_mock_settlement`'s executor also now performs the real settlement itself: it calls
-`scripts/lib/squadsClient.ts`'s `completeSettlement` (Squads propose → approve → execute) using
-the pooled treasury from `pnpm setup-squads-treasury`, then attests to the result on-chain. The
-model's tool call shape didn't change — it's still zero arguments — so this doesn't add anything
-to what the model can decide; the harness just does more work underneath that one tool.
+`scripts/lib/splitSettlement.ts`'s `executeSplitSettlement` (Phase 5 — a Pyth-priced 85/10/5 split
+across vendor/tax-reserve/yield-pool, vendor leg paid via real x402 rails), then attests to the
+result on-chain. The model's tool call shape didn't change — it's still zero arguments — so this
+doesn't add anything to what the model can decide; the harness just does more work underneath that
+one tool. Phase 4's Squads multisig treasury still exists and still governs pause/notify/resume
+authorization (below) — it's a separate track from Phase 5's settlement funding source (see
+README.md's Phase 5 section for why).
 
 ## Usage
 
@@ -63,4 +66,4 @@ dashboard create a webhook pointed at `<tunnel-url>/trigger` with a custom Autho
 `Bearer <HELIUS_WEBHOOK_SECRET>`. This registration step is manual/human — it needs a live tunnel
 URL and dashboard access, so it isn't automated here.
 
-**Status: implemented (Phase 3 + Phase 4).**
+**Status: implemented (Phase 3 + Phase 4 + Phase 5).**

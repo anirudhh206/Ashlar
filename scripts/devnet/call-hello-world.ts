@@ -11,12 +11,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import type { Ashlar } from '../../target/types/ashlar.js';
+import { DEVNET_URL } from '../lib/constants.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const IDL_PATH = path.join(REPO_ROOT, 'target', 'idl', 'ashlar.json');
 const WALLET_PATH = path.join(REPO_ROOT, 'wallets', 'business-owner.json');
-const DEVNET_URL = 'https://api.devnet.solana.com';
 
 async function main(): Promise<void> {
   const idl = JSON.parse(readFileSync(IDL_PATH, 'utf8'));

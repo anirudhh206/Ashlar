@@ -94,8 +94,8 @@ export async function driveWorkflow(workflowIdRaw: string | number, invoiceId: n
     const workflowAccount = await getWorkflow(ctx, workflowPda);
     if ('pendingOverrideApproval' in workflowAccount.status) {
       await notifyOwner(
-        `Workflow ${workflowIdRaw.toString()} paused: requested ${workflowAccount.pendingAmount.toString()} ` +
-          `lamports exceeds the spend cap of ${workflowAccount.spendCap.toString()} lamports. ` +
+        `Workflow ${workflowIdRaw.toString()} paused: requested $${workflowAccount.pendingAmount.toString()} ` +
+          `exceeds the spend cap of $${workflowAccount.spendCap.toString()}. ` +
           `Run \`pnpm resume-workflow ${workflowIdRaw.toString()} approve\` (or \`reject\`) to resolve it.`,
       );
       console.log(`[agent] workflow paused, owner notified — stopping (no override tool available to me)`);

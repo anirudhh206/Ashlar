@@ -21,11 +21,12 @@ import {
   explorerLink,
   type WorkflowTypeArg,
 } from '../lib/policyEngineClient.js';
-import { completeSettlement } from '../lib/squadsClient.js';
+import { executeSplitSettlement } from '../lib/splitSettlement.js';
 
-// Amount is in lamports (mock currency unit — see README). Settled from the pooled Squads
-// treasury vault (pnpm setup-squads-treasury), not a per-workflow escrow.
-const DEFAULT_INSTRUCTION = 'Transfer $2000000 to Acme Corp, pending my approval.';
+// The compiled amount is treated as a USD figure (the compiler already tags it `currency:
+// 'USDC'`) and split 85/10/5 across vendor/tax-reserve/yield-pool via real Phase 5 rails — see
+// scripts/lib/splitSettlement.ts. Keep this small; it's paid out in real devnet USDC.
+const DEFAULT_INSTRUCTION = 'Transfer $5 to Acme Corp, pending my approval.';
 
 async function main(): Promise<void> {
   const instruction = process.argv[2] ?? DEFAULT_INSTRUCTION;
@@ -36,16 +37,16 @@ async function main(): Promise<void> {
   const ctx = await loadPolicyEngineContext();
   const vendor = resolveVendorPubkey();
 
-  let spendCapLamports: bigint;
+  let spendCapUsd: bigint;
   let workflowTypeArg: WorkflowTypeArg;
   if (compiled.workflowType === 'recurring-conditional-payment') {
-    spendCapLamports = BigInt(compiled.parameters.spendCap.perPayment);
+    spendCapUsd = BigInt(compiled.parameters.spendCap.perPayment);
     workflowTypeArg = { recurringConditionalPayment: {} };
   } else {
-    spendCapLamports = BigInt(compiled.parameters.amount);
+    spendCapUsd = BigInt(compiled.parameters.amount);
     workflowTypeArg = { oneTimeApprovalGatedTransfer: {} };
   }
-  const spendCap = new anchor.BN(spendCapLamports.toString());
+  const spendCap = new anchor.BN(spendCapUsd.toString());
   const workflowId = new anchor.BN(Date.now());
 
   const { signature: initSig, pdas } = await initializeWorkflow(ctx, {
@@ -69,9 +70,14 @@ async function main(): Promise<void> {
   const guardrailSig = await submitGuardrailCheck(ctx, workflowId, spendCap, vendor);
   console.log(`[4/5] guardrail_check: ${guardrailSig}\n      ${explorerLink(guardrailSig)}`);
 
-  const settlementReference = await completeSettlement(Number(spendCapLamports), vendor);
-  console.log(`      Squads settlement: ${settlementReference}\n      ${explorerLink(settlementReference)}`);
-  const settlementSig = await submitMockSettlement(ctx, workflowId, settlementReference);
+  const { evidence, onChainReference } = await executeSplitSettlement(
+    workflowId.toString(),
+    Number(spendCapUsd),
+    vendor,
+  );
+  console.log(`      Split settlement: vendor ${evidence.splits.vendorUsdcAtomic} / tax-reserve ` +
+    `${evidence.splits.taxReserveUsdcAtomic} / yield-pool ${evidence.splits.yieldPoolUsdcAtomic} (USDC atomic units)`);
+  const settlementSig = await submitMockSettlement(ctx, workflowId, onChainReference);
   console.log(`[5/5] mock_settlement: ${settlementSig}\n      ${explorerLink(settlementSig)}`);
 
   const workflowAccount = await getWorkflow(ctx, pdas.workflow);

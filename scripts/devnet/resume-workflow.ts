@@ -15,7 +15,7 @@ import {
   submitMockSettlement,
   explorerLink,
 } from '../lib/policyEngineClient.js';
-import { completeSettlement } from '../lib/squadsClient.js';
+import { executeSplitSettlement } from '../lib/splitSettlement.js';
 
 async function main(): Promise<void> {
   const [workflowIdRaw, decisionRaw] = process.argv.slice(2);
@@ -51,10 +51,15 @@ async function main(): Promise<void> {
 
   console.log('Override approved — completing settlement...');
   const recipient = resolveVendorPubkey();
-  const settlementReference = await completeSettlement(Number(before.pendingAmount), recipient);
-  console.log(`Squads settlement executed: ${settlementReference}\n${explorerLink(settlementReference)}`);
+  const { evidence, onChainReference } = await executeSplitSettlement(
+    workflowIdRaw,
+    before.pendingAmount.toNumber(),
+    recipient,
+  );
+  console.log(`Split settlement: vendor ${evidence.splits.vendorUsdcAtomic} / tax-reserve ` +
+    `${evidence.splits.taxReserveUsdcAtomic} / yield-pool ${evidence.splits.yieldPoolUsdcAtomic} (USDC atomic units)`);
 
-  const settlementSig = await submitMockSettlement(ctx, workflowId, settlementReference);
+  const settlementSig = await submitMockSettlement(ctx, workflowId, onChainReference);
   console.log(`mock_settlement: ${settlementSig}\n${explorerLink(settlementSig)}`);
 
   const after = await getWorkflow(ctx, workflowPda);

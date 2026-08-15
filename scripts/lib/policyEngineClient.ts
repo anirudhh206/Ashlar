@@ -11,13 +11,13 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import type { Ashlar } from '../../target/types/ashlar.js';
+import { DEVNET_URL } from './constants.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const IDL_PATH = path.join(REPO_ROOT, 'target', 'idl', 'ashlar.json');
 const WALLET_PATH = path.join(REPO_ROOT, 'wallets', 'business-owner.json');
 const MANIFEST_PATH = path.join(REPO_ROOT, 'wallets', 'manifest.json');
-const DEVNET_URL = 'https://api.devnet.solana.com';
 
 export type WorkflowTypeArg =
   | { recurringConditionalPayment: Record<string, never> }
@@ -171,9 +171,10 @@ export async function submitGuardrailCheck(
     .rpc();
 }
 
-/** `settlementReference` is the Squads execution tx signature (see squadsClient.completeSettlement)
- * — the real fund movement must already have happened before this is called; this instruction
- * only attests to it. */
+/** `settlementReference` is a compact JSON evidence summary (see
+ * splitSettlement.executeSplitSettlement's onChainReference) — the real fund movement (Pyth-priced
+ * 85/10/5 split across vendor/tax-reserve/yield-pool) must already have happened before this is
+ * called; this instruction only attests to it. */
 export async function submitMockSettlement(
   ctx: PolicyEngineContext,
   workflowId: anchor.BN,

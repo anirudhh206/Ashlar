@@ -5,26 +5,47 @@
       "role": "business-owner",
       "pubkey": "Fqqm7w8iWkmf9RYDbiQVwVSdAKkziFjqfG5Cn28CVNjQ",
       "file": "wallets/business-owner.json",
-      "createdAt": "2026-08-13T21:34:02.835Z"
+      "createdAt": "2026-08-15T09:08:29.920Z"
     },
     {
       "role": "treasury-placeholder",
       "pubkey": "HH1vAUPGCbpSy3Y7qRvHdJ68cZsgn4o3KDZxKDEe1HP7",
       "file": "wallets/treasury-placeholder.json",
-      "createdAt": "2026-08-13T21:34:11.552Z",
+      "createdAt": "2026-08-15T09:08:29.925Z",
       "note": "stand-in until Squads multisig (Phase 4)"
     },
     {
       "role": "test-vendor",
       "pubkey": "FzSqgts4TMkocmv93GM7fRdtTVcC3Kx5Vs8aSUuzYzHw",
       "file": "wallets/test-vendor.json",
-      "createdAt": "2026-08-13T21:34:20.501Z"
+      "createdAt": "2026-08-15T09:08:29.927Z"
     },
     {
       "role": "adversarial",
       "pubkey": "7HER9hihU84k6eaBv6dvVGrcE72QU5ZBbXqMfHE6M7p8",
       "file": "wallets/adversarial.json",
-      "createdAt": "2026-08-13T21:34:29.412Z"
+      "createdAt": "2026-08-15T09:08:29.930Z"
+    },
+    {
+      "role": "tax-reserve-placeholder",
+      "pubkey": "cKj2VdpBswJwmp3iJHSu6rQaL77u6mgooyCBC1ZeUna",
+      "file": "wallets/tax-reserve-placeholder.json",
+      "createdAt": "2026-08-15T09:08:30.809Z",
+      "note": "stand-in destination for the tax-reserve leg of split settlement (Phase 5)"
+    },
+    {
+      "role": "yield-pool-placeholder",
+      "pubkey": "AK3sBcJe1vhxcyGq1HuT8xVDdrKQ6ZTMH2BNmTtT9Ejh",
+      "file": "wallets/yield-pool-placeholder.json",
+      "createdAt": "2026-08-15T09:08:39.532Z",
+      "note": "stand-in destination for the yield-pool leg of split settlement, not a real lending-protocol deposit (Phase 5)"
+    },
+    {
+      "role": "agent-identity",
+      "pubkey": "21rdGpjPjVyqRemHHgEj2gTABTKwt6M9shKt8bef2Efh",
+      "file": "wallets/agent-identity.json",
+      "createdAt": "2026-08-15T09:08:48.430Z",
+      "note": "registered on-chain via MPL Agent Registry to verify the agent has a real identity (Phase 5)"
     }
   ]
 }

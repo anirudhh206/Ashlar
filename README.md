@@ -83,6 +83,9 @@ and roles only — never private keys):
 | `treasury-placeholder`| Stand-in for the eventual Squads multisig vault (real one: Phase 4) |
 | `test-vendor`         | Receiving/counterparty wallet for invoice-payment tests           |
 | `adversarial`         | Phase 8's "try to break it" wallet                                |
+| `tax-reserve-placeholder` | Split-settlement destination, tax-reserve leg (Phase 5)       |
+| `yield-pool-placeholder`  | Split-settlement destination, yield-pool leg — not a real lending-protocol deposit (Phase 5) |
+| `agent-identity`      | Registered on-chain via MPL Agent Registry as the agent's identity (Phase 5) |
 
 If the devnet faucet airdrop is rate-limited, fund a wallet manually:
 ```
@@ -198,6 +201,62 @@ so nothing fails silently.
 
 **Human action item:** create a Telegram bot via @BotFather and set `TELEGRAM_BOT_TOKEN`/
 `TELEGRAM_CHAT_ID` in `.env` for real notification delivery — see `.env.example`.
+
+## Phase 5 status
+
+- [x] **Zero on-chain changes.** `mock_settlement`'s `settlement_reference: String` argument is
+      only ever hashed into the step's `Attestation`, never stored raw — Phase 5 fits entirely in
+      the TypeScript layer by passing a compact JSON evidence summary through that existing arg.
+- [x] Live pricing (`scripts/lib/pythClient.ts`) — Pyth's Hermes REST price service (public, no API
+      key), used to convert a workflow's USD amount into an exact USDC-devnet (6-decimal) figure.
+- [x] Pluggable Compliance & Oracle Registry (`scripts/lib/registry.ts`) — `ComplianceProvider`/
+      `OracleProvider` interfaces, one concrete implementation each; swapping providers means
+      changing the factory's return value, not any call site.
+- [x] AP2 mandate signing (`scripts/lib/ap2Client.ts`) — implemented directly via `tweetnacl`
+      ed25519 signing (not the very-new `agentic-payments` npm package). Every settlement writes a
+      signed, verifiable mandate to `treasury/mandates/<workflowId>.json`.
+- [x] Real x402 payments (`scripts/lib/x402Client.ts`, `scripts/devnet/x402-vendor-server.ts`) —
+      genuine x402 v2 protocol via `x402-solana` against PayAI's public facilitator
+      (`https://facilitator.payai.network`): 402 challenge, signed USDC payment, facilitator
+      verify/settle. Smoke-tested against the real facilitator (see "Human action item" below for
+      what's needed to complete an actual funded payment).
+- [x] Real MPL Agent Registry integration (`scripts/lib/agentIdentityClient.ts`,
+      `pnpm register-agent-identity`) — registers the `agent-identity` wallet as a genuine on-chain
+      identity (an MPL Core asset + `AgentIdentityV1` account). Chosen over SAID Protocol: same
+      program/PDA layout on devnet and mainnet, more official/narrower fit, no paid verification
+      infra needed. Verified end-to-end on devnet — see `treasury/agent-identity.json`.
+- [x] Split settlement orchestration (`scripts/lib/splitSettlement.ts`) — computes an 85% vendor /
+      10% tax-reserve / 5% yield-pool-placeholder split in USDC-devnet at the live Pyth price,
+      signs the AP2 mandate, pays the vendor leg via real x402 rails, sends the tax-reserve/
+      yield-pool legs as plain SPL transfers, checks agent identity, and folds all of it into one
+      evidence JSON — replacing Phase 4's `squadsClient.completeSettlement` in
+      `deploy-workflow.ts`, `agent/src/tools.ts`, and `resume-workflow.ts`. Full evidence is
+      written to `treasury/settlements/<workflowId>.json`; only a compact summary goes on-chain.
+- [x] Verified against real devnet, not just typechecked: the x402 facilitator smoke test, the
+      agent identity registration + read-back, and a full `pnpm deploy-workflow` run — all four
+      on-chain gates (`initialize_workflow`, `fetch_step`, `manual_approval`/`compliance_check`,
+      `guardrail_check`) complete for real, with the run failing only at the expected point (no
+      funded USDC-devnet balance yet — see below).
+
+**Architectural note — two separate settlement tracks, intentionally.** Phase 4's Squads multisig
+treasury (pooled lamports) still exists and still governs the pause/notify/resume-override
+authorization flow — that's unchanged. Phase 5's split settlement pays out of the business-owner
+wallet's own USDC-devnet balance instead, because x402 payments need a directly-signable payer,
+which a multisig can't be without deeper Squads integration than this phase's scope. Both are real;
+they just answer different questions (who authorizes a payout vs. how the settlement itself moves
+funds).
+
+**Not yet exercised in this environment:** a real, funded x402 payment settling all the way through
+the PayAI facilitator, since the business-owner wallet has no devnet USDC balance yet in this
+environment. Every piece up to that point — Pyth pricing, AP2 mandate signing, the 402 challenge
+round-trip against a live facilitator, agent identity verification — is independently verified
+against real devnet/live services (see the checklist above); only the final funded transfer is
+gated on the human action item below.
+
+**Human action item:** fund `business-owner`'s USDC-devnet associated token account via
+https://faucet.circle.com (devnet USDC mint: `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`) before
+a real split settlement can complete. SOL transaction fees are already covered by existing devnet
+SOL. See `.env.example` for the x402 vendor server's config.
 
 ## Note on Anchor version
 
