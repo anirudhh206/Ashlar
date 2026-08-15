@@ -16,7 +16,9 @@ import {
 } from '../lib/policyEngineClient.js';
 import { driveWorkflow } from '../../agent/src/driveWorkflow.js';
 
-const DEFAULT_INSTRUCTION = 'Transfer $2000000 to Acme Corp, pending my approval.';
+// Small USD amount matching agent/src/mockInvoices.ts's invoice #1 exactly (Phase 5 changed the
+// compiled amount's unit from mock lamports to real USD — this default was stale until now).
+const DEFAULT_INSTRUCTION = 'Transfer $5 to Acme Corp, pending my approval.';
 const DEFAULT_INVOICE_ID = 1;
 
 async function main(): Promise<void> {
@@ -30,16 +32,16 @@ async function main(): Promise<void> {
   const ctx = await loadPolicyEngineContext();
   const vendor = resolveVendorPubkey();
 
-  let spendCapLamports: bigint;
+  let spendCapUsd: bigint;
   let workflowTypeArg: WorkflowTypeArg;
   if (compiled.workflowType === 'recurring-conditional-payment') {
-    spendCapLamports = BigInt(compiled.parameters.spendCap.perPayment);
+    spendCapUsd = BigInt(compiled.parameters.spendCap.perPayment);
     workflowTypeArg = { recurringConditionalPayment: {} };
   } else {
-    spendCapLamports = BigInt(compiled.parameters.amount);
+    spendCapUsd = BigInt(compiled.parameters.amount);
     workflowTypeArg = { oneTimeApprovalGatedTransfer: {} };
   }
-  const spendCap = new anchor.BN(spendCapLamports.toString());
+  const spendCap = new anchor.BN(spendCapUsd.toString());
   const workflowId = new anchor.BN(Date.now());
 
   const { signature, pdas } = await initializeWorkflow(ctx, {
