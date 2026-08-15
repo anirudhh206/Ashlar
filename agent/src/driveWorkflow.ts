@@ -78,7 +78,7 @@ export async function driveWorkflow(
         (block): block is Anthropic.TextBlock => block.type === 'text',
       );
       console.log(`[agent] ${textBlock?.text ?? '(no text response)'}`);
-      break;
+      return;
     }
 
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
