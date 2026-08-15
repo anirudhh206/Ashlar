@@ -63,7 +63,18 @@ function startServer(defaultAmountUsdcAtomic: bigint) {
       const paymentHeader = handler.extractPayment(req.headers as Record<string, string>);
       if (!paymentHeader) {
         const { status, body } = handler.create402Response(requirements, resourceUrl);
-        res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body));
+        // handler.extractPayment() only ever checks the v2 PAYMENT-SIGNATURE header, and the
+        // real PayAI facilitator's /verify only accepts v2-shaped payloads — but the client only
+        // uses protocol v2 if this response carries a PAYMENT-REQUIRED header; otherwise it
+        // silently falls back to v1 (X-PAYMENT, a different payload shape verifyPayment can't
+        // parse), which surfaced as a real "unexpected_verify_error" from the live facilitator
+        // (confirmed by reading both sides of x402-solana's source — a real internal
+        // inconsistency in the package, not something fixable upstream from here). Setting this
+        // header is what actually keeps the whole exchange on v2 throughout.
+        const paymentRequiredHeader = Buffer.from(JSON.stringify(body)).toString('base64');
+        res
+          .writeHead(status, { 'content-type': 'application/json', 'PAYMENT-REQUIRED': paymentRequiredHeader })
+          .end(JSON.stringify(body));
         return;
       }
 
