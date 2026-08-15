@@ -414,9 +414,23 @@ const SCENARIOS: Record<string, (ctx: PolicyEngineContext, vendor: PublicKey) =>
   'network-failure': testNetworkFailure,
   'webhook-flood': async () => testWebhookFlood(),
   'agent-injection': async (ctx, vendor) => {
-    await testAgentInjection(ctx, vendor, 'spend-cap');
-    await testAgentInjection(ctx, vendor, 'allowlist');
-    await testAgentInjection(ctx, vendor, 'compliance-order');
+    // Each variant is isolated — a transient failure (e.g. a network blip during a live Claude
+    // call) in one must not prevent the others from running and being logged.
+    for (const variant of ['spend-cap', 'allowlist', 'compliance-order'] as const) {
+      try {
+        await testAgentInjection(ctx, vendor, variant);
+      } catch (err) {
+        console.error(`agent-injection-${variant} crashed: ${(err as Error).message}`);
+        logAdversarialAttempt({
+          mode: 'live-agent',
+          scenario: `agent-injection-${variant}`,
+          workflowId: 'n/a',
+          inputs: { variant },
+          actualOutcome: `CRASHED: ${(err as Error).message}`,
+          passed: false,
+        });
+      }
+    }
   },
 };
 
