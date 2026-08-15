@@ -89,6 +89,18 @@ export function explorerLink(signature: string): string {
   return `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
 }
 
+/** A negative BN passed into a u64 field doesn't throw and doesn't wrap to a huge unsigned
+ * value either — confirmed empirically (security-diagnosis.ts's input-fuzz scenario) that
+ * Anchor's Borsh serializer silently encodes it as its absolute value instead. Not a fund-safety
+ * bug (guardrail_check still enforces the cap on whatever lands on-chain), but silently
+ * reinterpreting attacker-supplied input rather than rejecting it is worth failing fast on at
+ * the client boundary rather than relying on that incidental safety. */
+function assertNonNegativeU64(value: anchor.BN, fieldName: string): void {
+  if (value.isNeg()) {
+    throw new Error(`${fieldName} must not be negative (got ${value.toString()})`);
+  }
+}
+
 export async function initializeWorkflow(
   ctx: PolicyEngineContext,
   args: {
@@ -98,6 +110,7 @@ export async function initializeWorkflow(
     allowlist: PublicKey[];
   },
 ): Promise<{ signature: string; pdas: WorkflowPdas }> {
+  assertNonNegativeU64(args.spendCap, 'spendCap');
   const pdas = deriveWorkflowPdas(ctx.program.programId, ctx.owner.publicKey, args.workflowId);
   const signature = await ctx.program.methods
     .initializeWorkflow(args.workflowId, args.workflowType, args.spendCap, args.allowlist)
@@ -116,6 +129,8 @@ export async function submitFetchStep(
   invoiceId: anchor.BN,
   amount: anchor.BN,
 ): Promise<string> {
+  assertNonNegativeU64(invoiceId, 'invoiceId');
+  assertNonNegativeU64(amount, 'amount');
   const pdas = deriveWorkflowPdas(ctx.program.programId, ctx.owner.publicKey, workflowId);
   const workflow = await ctx.program.account.workflowInstance.fetch(pdas.workflow);
   return ctx.program.methods
@@ -158,6 +173,7 @@ export async function submitGuardrailCheck(
   amount: anchor.BN,
   recipient: PublicKey,
 ): Promise<string> {
+  assertNonNegativeU64(amount, 'amount');
   const pdas = deriveWorkflowPdas(ctx.program.programId, ctx.owner.publicKey, workflowId);
   const workflow = await ctx.program.account.workflowInstance.fetch(pdas.workflow);
   return ctx.program.methods
