@@ -341,9 +341,18 @@ async function testWebhookFlood(): Promise<void> {
     return;
   }
 
-  const all401 = statuses.every((s) => s === 401);
+  // Every response must be either a correct auth rejection (401) or a rate-limit rejection
+  // (429, once the per-IP threshold is crossed) — never a 200/202 (accepted).
+  const noneAccepted = statuses.every((s) => s === 401 || s === 429);
+  const rateLimitEngaged = statuses.includes(429);
   console.log(`Statuses: ${JSON.stringify(statuses)}`);
-  report('webhook-flood-near-miss-auth', 'n/a', { requestCount: statuses.length, guesses: guesses.length }, `all401=${all401}, statuses=${JSON.stringify(statuses)}`, all401);
+  report(
+    'webhook-flood-near-miss-auth',
+    'n/a',
+    { requestCount: statuses.length, guesses: guesses.length },
+    `noneAccepted=${noneAccepted}, rateLimitEngaged=${rateLimitEngaged}, statuses=${JSON.stringify(statuses)}`,
+    noneAccepted,
+  );
 }
 
 // --- live-agent injection variants -------------------------------------------

@@ -10,6 +10,22 @@ import { driveWorkflow } from './driveWorkflow.js';
 
 const PORT = Number(process.env.AGENT_SERVER_PORT ?? 8787);
 
+// Basic per-IP rate limit — found via a real flood test (scripts/devnet/security-diagnosis.ts's
+// webhook-flood scenario) that auth correctly rejects every bad request, but nothing stopped
+// volumetric abuse before that point. Sliding window, in-memory, no new dependency — matches
+// this file's existing "plain node:http" pattern.
+const RATE_LIMIT_WINDOW_MS = 10_000;
+const RATE_LIMIT_MAX_REQUESTS = 20;
+const requestTimestamps = new Map<string, number[]>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const timestamps = (requestTimestamps.get(ip) ?? []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+  timestamps.push(now);
+  requestTimestamps.set(ip, timestamps);
+  return timestamps.length > RATE_LIMIT_MAX_REQUESTS;
+}
+
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -23,6 +39,12 @@ const server = createServer((req, res) => {
   void (async () => {
     if (req.method !== 'POST' || req.url !== '/trigger') {
       res.writeHead(404).end('not found');
+      return;
+    }
+
+    const clientIp = req.socket.remoteAddress ?? 'unknown';
+    if (isRateLimited(clientIp)) {
+      res.writeHead(429).end('too many requests');
       return;
     }
 
