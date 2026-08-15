@@ -15,6 +15,7 @@
     "register-agent-identity": "tsx scripts/devnet/register-agent-identity.ts",
     "setup-receipt-collection": "tsx scripts/devnet/setup-receipt-collection.ts",
     "adversarial-test": "tsx scripts/devnet/adversarial-test.ts",
+    "load-test": "tsx scripts/devnet/load-test.ts",
     "adversarial-agent-demo": "tsx --env-file-if-exists=.env scripts/devnet/adversarial-agent-demo.ts",
     "verify": "tsx verifier/src/cli.ts",
     "dashboard-server": "tsx --env-file-if-exists=.env dashboard/server/relay.ts",
