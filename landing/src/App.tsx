@@ -35,7 +35,7 @@ export default function App() {
   useEffect(() => setReady(true), []);
 
   return (
-    <div className="relative overflow-x-hidden">
+    <div className="relative">
       <motion.div
         className="fixed top-0 left-0 h-[3px] bg-(--color-accent) z-[60] origin-left"
         style={{ scaleX: scrollYProgress, width: '100%' }}

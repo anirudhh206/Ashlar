@@ -3,7 +3,7 @@ import { Reveal } from '../components/Reveal';
 import { architectureLayers } from '../lib/facts';
 
 const icons = { bot: Bot, 'shield-check': ShieldCheck, users: Users };
-const shades = ['bg-(--color-surface)', 'bg-[#e9e9ec]', 'bg-[#d8d8dd]'];
+const shades = ['bg-(--color-surface)', 'bg-[#e8e2d1]', 'bg-[#ddd4bb]'];
 
 export function ArchitectureStack() {
   return (

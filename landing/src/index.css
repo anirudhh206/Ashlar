@@ -4,16 +4,16 @@
   --font-sans:
     'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
 
-  --color-ink: #0a0a0a;
-  --color-paper: #ffffff;
-  --color-mist: #6e6e73;
-  --color-hairline: #e5e5e7;
-  --color-surface: #f5f5f7;
+  --color-ink: #14130f;
+  --color-paper: #faf8f4;
+  --color-mist: #79766d;
+  --color-hairline: #e5e1d6;
+  --color-surface: #f1efe7;
 
-  --color-accent: #ec3013;
-  --color-accent-hover: #d42a0f;
-  --color-accent-soft: #fff1ee;
-  --color-accent-glow: #ff5a37;
+  --color-accent: #a8813f;
+  --color-accent-hover: #8c6a30;
+  --color-accent-soft: #f4ecd8;
+  --color-accent-glow: #d9b876;
 
   --animate-marquee: marquee 32s linear infinite;
 }

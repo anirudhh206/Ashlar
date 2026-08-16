@@ -4,8 +4,8 @@ import { useRef } from 'react';
 import { Reveal } from '../components/Reveal';
 import { receiptCnft, settlementSplit, workflows, x402Tx } from '../lib/facts';
 
-const segColors = ['bg-(--color-ink)', 'bg-[#9b9797]', 'bg-[#d7d3d3]'];
-const dotColors = ['bg-(--color-ink)', 'bg-[#9b9797]', 'bg-[#d7d3d3]'];
+const segColors = ['bg-(--color-ink)', 'bg-(--color-accent)', 'bg-[#cfc6ae]'];
+const dotColors = ['bg-(--color-ink)', 'bg-(--color-accent)', 'bg-[#cfc6ae]'];
 
 export function CaseStudy() {
   const cardRef = useRef<HTMLDivElement>(null);
