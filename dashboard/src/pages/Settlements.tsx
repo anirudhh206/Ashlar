@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { CircleAlert, ExternalLink, Loader2 } from 'lucide-react';
+import { CircleAlert, ExternalLink, Receipt } from 'lucide-react';
 import { explorerTx, RELAY_URL, workflowIdToDate, type SettlementEvidence } from '../types.js';
+import { EmptyState } from '../components/EmptyState.js';
+import { SkeletonRows } from '../components/Skeleton.js';
 
 const segColors = ['bg-(--color-ink)', 'bg-(--color-accent)', 'bg-[#d7d1bd]'];
 
@@ -31,13 +33,7 @@ export function Settlements() {
       });
   }, []);
 
-  if (status === 'loading') {
-    return (
-      <p className="text-[13.5px] text-(--color-mist) flex items-center gap-2">
-        <Loader2 className="w-4 h-4 animate-spin" /> Loading real settlement records…
-      </p>
-    );
-  }
+  if (status === 'loading') return <SkeletonRows count={3} />;
   if (status === 'error') {
     return (
       <p className="text-[13.5px] text-red-700 flex items-center gap-1.5">
@@ -47,12 +43,11 @@ export function Settlements() {
   }
   if (!settlements || settlements.length === 0) {
     return (
-      <section className="rounded-xl border border-(--color-hairline) bg-white p-5">
-        <p className="text-[13.5px] text-(--color-mist) m-0">
-          No settlements recorded yet — this fills in the moment a workflow actually settles for
-          real.
-        </p>
-      </section>
+      <EmptyState
+        icon={Receipt}
+        title="No settlements yet"
+        body="This fills in the moment a workflow actually settles for real."
+      />
     );
   }
 
@@ -70,7 +65,13 @@ export function Settlements() {
         ];
         const total = split.reduce((sum, seg) => sum + Number(seg.atomic), 0);
         return (
-          <section key={s.workflowId} className="rounded-xl border border-(--color-hairline) bg-white p-5">
+          <motion.section
+            key={s.workflowId}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: Math.min(i, 8) * 0.05 }}
+            className="rounded-xl border border-(--color-hairline) bg-white p-5 transition-shadow hover:shadow-md"
+          >
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <div>
                 <p className="font-semibold text-[14px] m-0">
@@ -121,7 +122,7 @@ export function Settlements() {
                 Yield-pool tx <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>
-          </section>
+          </motion.section>
         );
       })}
     </div>
