@@ -1,0 +1,46 @@
+@import 'tailwindcss';
+
+/* Same design tokens as landing/src/index.css — kept as its own copy (each package here is
+   self-contained, matching the existing dashboard/server / agent/server split) rather than a
+   shared package, but the values must stay identical so the two apps read as one product. */
+@theme {
+  --font-sans:
+    'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+
+  --color-ink: #14130f;
+  --color-paper: #faf8f4;
+  --color-mist: #79766d;
+  --color-hairline: #e5e1d6;
+  --color-surface: #f1efe7;
+
+  --color-accent: #a8813f;
+  --color-accent-hover: #8c6a30;
+  --color-accent-soft: #f4ecd8;
+  --color-accent-glow: #d9b876;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

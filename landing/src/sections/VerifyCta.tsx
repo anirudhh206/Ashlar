@@ -1,5 +1,5 @@
 import { Reveal } from '../components/Reveal';
-import { verifyCommand, workflows } from '../lib/facts';
+import { dashboardUrl, verifyCommand, workflows } from '../lib/facts';
 
 export function VerifyCta() {
   return (
@@ -20,6 +20,14 @@ export function VerifyCta() {
           </div>
 
           <div className="flex gap-4 flex-wrap mt-8">
+            <a
+              href={dashboardUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center rounded-full bg-white text-(--color-accent-hover) font-semibold text-[15px] px-6 py-3 transition-transform hover:-translate-y-0.5 hover:bg-white/90"
+            >
+              Open the live dashboard
+            </a>
             <a
               href={workflows.oneTimeApproval.explorer}
               target="_blank"

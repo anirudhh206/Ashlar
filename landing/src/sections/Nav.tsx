@@ -1,3 +1,5 @@
+import { dashboardUrl } from '../lib/facts';
+
 const links = [
   { href: '#stack', label: 'System' },
   { href: '#how', label: 'How it works' },
@@ -20,10 +22,12 @@ export function Nav() {
         </a>
       ))}
       <a
-        href="#verify"
+        href={dashboardUrl}
+        target="_blank"
+        rel="noreferrer"
         className="inline-flex items-center rounded-full bg-(--color-accent) text-white text-sm font-semibold px-4 py-2 transition-transform hover:-translate-y-0.5 hover:bg-(--color-accent-hover)"
       >
-        Run the verifier
+        Open the dashboard
       </a>
     </nav>
   );

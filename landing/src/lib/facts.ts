@@ -110,6 +110,10 @@ export const howItWorks = [
 
 export const verifyCommand = `pnpm verify ${workflows.oneTimeApproval.pda}`;
 
+// The live dashboard (@ashlar/dashboard) is a separate app/port — dev default matches its own
+// vite.config.ts. Override via VITE_DASHBOARD_URL for a non-local deployment.
+export const dashboardUrl = import.meta.env.VITE_DASHBOARD_URL ?? 'http://localhost:5173';
+
 // The system underneath the settlement most visitors see — six real, independently-shippable
 // subsystems, not one script. Each maps to an actual package/program in the repo.
 export const stackPillars = [
