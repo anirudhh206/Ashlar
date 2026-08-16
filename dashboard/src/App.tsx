@@ -66,8 +66,11 @@ export function App() {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const [instruction, setInstruction] = useState('');
+  // Deliberately sessionStorage, not localStorage: this token authorizes real devnet spend, so it
+  // should never survive past the browser tab closing, let alone persist to disk indefinitely.
+  // It's still a real credential typed into a browser field — see the caveat in the form below.
   const [deploySecret, setDeploySecret] = useState(
-    () => localStorage.getItem('ashlar-deploy-secret') ?? '',
+    () => sessionStorage.getItem('ashlar-deploy-secret') ?? '',
   );
   const [deployStatus, setDeployStatus] = useState<'idle' | 'deploying' | 'error'>('idle');
   const [deployError, setDeployError] = useState<string | null>(null);
@@ -101,7 +104,7 @@ export function App() {
     e.preventDefault();
     if (!instruction.trim() || !deploySecret.trim()) return;
 
-    localStorage.setItem('ashlar-deploy-secret', deploySecret.trim());
+    sessionStorage.setItem('ashlar-deploy-secret', deploySecret.trim());
     setDeployStatus('deploying');
     setDeployError(null);
 
@@ -170,10 +173,16 @@ export function App() {
           className="rounded-2xl border border-(--color-hairline) bg-white p-6 mb-6"
         >
           <h2 className="font-extrabold text-lg mb-1.5">Deploy a workflow</h2>
-          <p className="text-[13.5px] text-(--color-mist) mb-5">
+          <p className="text-[13.5px] text-(--color-mist) mb-2">
             Compiles a real instruction and runs it through all 5 gates on Solana devnet — a real
-            transaction, not a mockup. Requires the operator token configured server-side as{' '}
-            <code className="font-mono text-[12px]">DASHBOARD_DEPLOY_SECRET</code>.
+            transaction, not a mockup.
+          </p>
+          <p className="text-[12.5px] text-(--color-mist) mb-5 flex items-start gap-1.5">
+            <CircleAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            This token matches <code className="font-mono">DASHBOARD_DEPLOY_SECRET</code> on your
+            own relay — it's real spending authority, not a login. Only ever enter it here if
+            you're running this dashboard yourself, pointed at your own relay. It's kept in this
+            tab's session only, never persisted to disk.
           </p>
           <form onSubmit={handleDeploySubmit} className="flex flex-col gap-3">
             <input
