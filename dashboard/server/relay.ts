@@ -5,27 +5,31 @@
  * and pushes sanitized events to connected browsers over Server-Sent Events. The browser only
  * ever talks to this relay's own endpoints — it never sees Helius or holds a key.
  *
- * Everything above is genuinely read-only and safe to expose. If DASHBOARD_DEPLOY_SECRET is set,
- * this relay also exposes one authenticated write endpoint, POST /deploy, which really does
- * compile and deploy a workflow on devnet (spending real devnet SOL/USDC) — see the doc comment
- * above that route below. Without the env var set, /deploy always responds 500 and nothing about
- * the read-only behavior above changes.
+ * Everything above, plus GET /settlement/<workflowId> (real settlement evidence read from disk),
+ * is genuinely read-only and safe to expose. If DASHBOARD_DEPLOY_SECRET is set, this relay also
+ * exposes two authenticated write endpoints — POST /deploy and POST /resume — which really do
+ * spend real devnet SOL/USDC or resolve a real paused workflow; see the doc comments on each
+ * route below. Without the env var set, both always respond 500 and nothing about the read-only
+ * behavior above changes.
  *
  * Usage: pnpm dashboard-server
  */
 import { Program, AnchorProvider, Wallet } from '@anchor-lang/core';
 import { Connection, Keypair, PublicKey, type KeyedAccountInfo } from '@solana/web3.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import * as anchor from '@anchor-lang/core';
 import { DEVNET_URL } from '../../scripts/lib/constants.js';
 import { deployWorkflowFromInstruction } from '../../scripts/lib/deployWorkflow.js';
+import { loadPolicyEngineContext, submitResumeAfterOverride } from '../../scripts/lib/policyEngineClient.js';
 import type { Ashlar } from '../../target/types/ashlar.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const IDL_PATH = path.join(REPO_ROOT, 'target', 'idl', 'ashlar.json');
+const SETTLEMENTS_DIR = path.join(REPO_ROOT, 'treasury', 'settlements');
 const PORT = Number(process.env.DASHBOARD_SERVER_PORT ?? 8789);
 
 const idl = JSON.parse(readFileSync(IDL_PATH, 'utf8'));
@@ -125,11 +129,14 @@ async function fetchWorkflowSnapshot(workflowPubkey: PublicKey) {
   const ledger = await program.account.ledger.fetch(ledgerPda);
   return {
     workflow: {
+      workflowId: (workflow.workflowId as anchor.BN).toString(),
       owner: workflow.owner.toBase58(),
       workflowType: Object.keys(workflow.workflowType as object)[0],
       status: Object.keys(workflow.status as object)[0],
       currentStep: workflow.currentStep,
       spendCap: workflow.spendCap.toString(),
+      pendingAmount: (workflow.pendingAmount as anchor.BN).toString(),
+      pendingRecipient: (workflow.pendingRecipient as PublicKey).toBase58(),
     },
     ledger: {
       entries: ledger.entries.map((e: Record<string, unknown>) => ({
@@ -208,6 +215,71 @@ const server = createServer((req, res) => {
       return;
     }
 
+    // Real owner-signed override resolution for a workflow paused in PendingOverrideApproval —
+    // same auth/rate-limit trust boundary as /deploy (approving a spend-cap override is exactly
+    // as real and exactly as sensitive as creating a workflow in the first place).
+    if (req.method === 'POST' && url.pathname === '/resume') {
+      const clientIp = req.socket.remoteAddress ?? 'unknown';
+      if (isDeployRateLimited(clientIp)) {
+        res.writeHead(429).end('too many requests');
+        return;
+      }
+
+      const secret = process.env.DASHBOARD_DEPLOY_SECRET;
+      if (!secret) {
+        res.writeHead(500).end('DASHBOARD_DEPLOY_SECRET is not configured');
+        return;
+      }
+      if (req.headers.authorization !== `Bearer ${secret}`) {
+        res.writeHead(401).end('unauthorized');
+        return;
+      }
+
+      let body: { workflowId?: string; approved?: boolean };
+      try {
+        body = JSON.parse(await readBody(req)) as typeof body;
+      } catch {
+        res.writeHead(400).end('invalid JSON body');
+        return;
+      }
+      if (!body.workflowId || typeof body.approved !== 'boolean') {
+        res.writeHead(400).end('workflowId and approved are required');
+        return;
+      }
+
+      try {
+        const ctx = await loadPolicyEngineContext();
+        const signature = await submitResumeAfterOverride(
+          ctx,
+          new anchor.BN(body.workflowId),
+          body.approved,
+        );
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ signature }));
+      } catch (err) {
+        console.error('[dashboard-server/resume] failed:', err);
+        res
+          .writeHead(500, { 'content-type': 'application/json' })
+          .end(JSON.stringify({ error: (err as Error).message }));
+      }
+      return;
+    }
+
+    // Real settlement evidence, read-only — written once to disk by
+    // scripts/lib/splitSettlement.ts at the moment a workflow actually settles. A 404 here is a
+    // normal, expected state (in-progress or paused workflows have no settlement yet), not a bug.
+    const settlementMatch = /^\/settlement\/([0-9]+)$/.exec(url.pathname);
+    if (req.method === 'GET' && settlementMatch) {
+      const filePath = path.join(SETTLEMENTS_DIR, `${settlementMatch[1]}.json`);
+      if (!existsSync(filePath)) {
+        res.writeHead(404, { 'content-type': 'application/json' }).end(
+          JSON.stringify({ error: 'no settlement recorded for this workflow yet' }),
+        );
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'application/json' }).end(readFileSync(filePath, 'utf8'));
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/events') {
       const workflowParam = url.searchParams.get('workflow');
       if (!workflowParam) {
@@ -255,11 +327,13 @@ const server = createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
+  const deployStatus = process.env.DASHBOARD_DEPLOY_SECRET
+    ? 'enabled'
+    : 'disabled, set DASHBOARD_DEPLOY_SECRET to enable';
   console.log(`[dashboard-server] listening on http://localhost:${PORT}`);
-  console.log(`[dashboard-server] GET  /events?workflow=<pubkey>  (SSE live feed)`);
-  console.log(`[dashboard-server] GET  /workflow/<pubkey>         (initial snapshot)`);
-  console.log(
-    `[dashboard-server] POST /deploy                    (real devnet deploy — ` +
-      `${process.env.DASHBOARD_DEPLOY_SECRET ? 'enabled' : 'disabled, set DASHBOARD_DEPLOY_SECRET to enable'})`,
-  );
+  console.log(`[dashboard-server] GET  /events?workflow=<pubkey>      (SSE live feed)`);
+  console.log(`[dashboard-server] GET  /workflow/<pubkey>             (initial snapshot)`);
+  console.log(`[dashboard-server] GET  /settlement/<workflowId>       (real settlement evidence, if any)`);
+  console.log(`[dashboard-server] POST /deploy                        (real devnet deploy — ${deployStatus})`);
+  console.log(`[dashboard-server] POST /resume                        (real override resolution — ${deployStatus})`);
 });
