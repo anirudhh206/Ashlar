@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CircleAlert, ExternalLink, Loader2, Plus, SearchCheck } from 'lucide-react';
+import { motion } from 'motion/react';
+import { CircleAlert, ExternalLink, GitBranch, Plus, SearchCheck } from 'lucide-react';
 import { DeployDialog } from '../components/DeployDialog.js';
+import { EmptyState } from '../components/EmptyState.js';
+import { SkeletonRows } from '../components/Skeleton.js';
+import { CopyButton } from '../components/CopyButton.js';
 import {
   explorerAddress,
   RELAY_URL,
@@ -72,28 +76,29 @@ export function Workflows({ onVerify }: WorkflowsProps) {
         />
         <button
           onClick={() => setShowDeploy(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-(--color-accent) text-white font-medium text-[13px] px-4 py-2 transition-colors hover:bg-(--color-accent-hover)"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-(--color-accent) text-white font-medium text-[13px] px-4 py-2 transition-transform hover:-translate-y-0.5 hover:bg-(--color-accent-hover)"
         >
           <Plus className="w-4 h-4" /> New workflow
         </button>
       </div>
 
-      {status === 'loading' && (
-        <p className="text-[13.5px] text-(--color-mist) flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading real workflow accounts…
-        </p>
-      )}
+      {status === 'loading' && <SkeletonRows count={6} />}
       {status === 'error' && (
         <p className="text-[13.5px] text-red-700 flex items-center gap-1.5">
           <CircleAlert className="w-4 h-4 shrink-0" /> {error}
         </p>
       )}
 
-      {status === 'loaded' && data && (
+      {status === 'loaded' && data && filtered.length === 0 && (
+        <EmptyState icon={GitBranch} title="No matches" body="Nothing in this workflow list matches that search." />
+      )}
+
+      {status === 'loaded' && data && filtered.length > 0 && (
         <>
           <p className="text-[12.5px] text-(--color-mist) mb-3">
-            Showing {filtered.length} of {data.total} real WorkflowInstance accounts on this
-            program — every deploy, load test, and adversarial run this project has ever done.
+            Showing {Math.min(filtered.length, 50)} of {data.total} real WorkflowInstance accounts
+            on this program — every deploy, load test, and adversarial run this project has ever
+            done.
           </p>
           <div className="rounded-xl border border-(--color-hairline) bg-white overflow-hidden">
             <table className="w-full text-[13px] border-collapse">
@@ -108,17 +113,26 @@ export function Workflows({ onVerify }: WorkflowsProps) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.slice(0, 50).map((w) => (
-                  <tr key={w.pda} className="border-b border-(--color-hairline) last:border-0 hover:bg-(--color-surface) transition-colors">
+                {filtered.slice(0, 50).map((w, i) => (
+                  <motion.tr
+                    key={w.pda}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.25, delay: Math.min(i, 20) * 0.012 }}
+                    className="border-b border-(--color-hairline) last:border-0 hover:bg-(--color-surface) transition-colors"
+                  >
                     <td className="px-4 py-2.5">
-                      <a
-                        href={explorerAddress(w.pda)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-mono text-[12px] hover:text-(--color-accent) inline-flex items-center gap-1"
-                      >
-                        {short(w.pda)} <ExternalLink className="w-3 h-3" />
-                      </a>
+                      <div className="flex items-center gap-1.5">
+                        <a
+                          href={explorerAddress(w.pda)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-mono text-[12px] hover:text-(--color-accent) inline-flex items-center gap-1"
+                        >
+                          {short(w.pda)} <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <CopyButton value={w.pda} />
+                      </div>
                     </td>
                     <td className="px-4 py-2.5 font-mono text-[12px] text-(--color-mist)">{w.workflowType}</td>
                     <td className="px-4 py-2.5">
@@ -136,7 +150,7 @@ export function Workflows({ onVerify }: WorkflowsProps) {
                         <SearchCheck className="w-3.5 h-3.5" /> Verify
                       </button>
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))}
               </tbody>
             </table>
