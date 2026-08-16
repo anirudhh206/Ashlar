@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Workflows } from './sections/Workflows.js';
 import { Guardrails } from './sections/Guardrails.js';
 import { Settlement } from './sections/Settlement.js';
+import { Receipts } from './sections/Receipts.js';
 import {
   LANDING_URL,
   RELAY_URL,
@@ -10,11 +11,12 @@ import {
 } from './types.js';
 import { ArrowUpRight } from 'lucide-react';
 
-type Tab = 'workflows' | 'guardrails' | 'settlement';
+type Tab = 'workflows' | 'guardrails' | 'settlement' | 'receipts';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'workflows', label: 'Workflows' },
   { id: 'guardrails', label: 'Guardrails & Overrides' },
   { id: 'settlement', label: 'Settlement' },
+  { id: 'receipts', label: 'Receipts' },
 ];
 
 export function App() {
@@ -218,6 +220,8 @@ export function App() {
             workflowId={snapshot?.workflow.workflowId ?? null}
           />
         )}
+
+        {tab === 'receipts' && <Receipts />}
       </main>
     </div>
   );

@@ -5,8 +5,9 @@
  * and pushes sanitized events to connected browsers over Server-Sent Events. The browser only
  * ever talks to this relay's own endpoints — it never sees Helius or holds a key.
  *
- * Everything above, plus GET /settlement/<workflowId> (real settlement evidence read from disk),
- * is genuinely read-only and safe to expose. If DASHBOARD_DEPLOY_SECRET is set, this relay also
+ * Everything above, plus GET /settlement/<workflowId> (real settlement evidence read from disk)
+ * and GET /receipts (real compressed-NFT receipts, queried live from Helius's DAS index), is
+ * genuinely read-only and safe to expose. If DASHBOARD_DEPLOY_SECRET is set, this relay also
  * exposes two authenticated write endpoints — POST /deploy and POST /resume — which really do
  * spend real devnet SOL/USDC or resolve a real paused workflow; see the doc comments on each
  * route below. Without the env var set, both always respond 500 and nothing about the read-only
@@ -30,7 +31,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const IDL_PATH = path.join(REPO_ROOT, 'target', 'idl', 'ashlar.json');
 const SETTLEMENTS_DIR = path.join(REPO_ROOT, 'treasury', 'settlements');
+const RECEIPT_COLLECTION_PATH = path.join(REPO_ROOT, 'treasury', 'receipt-collection.json');
 const PORT = Number(process.env.DASHBOARD_SERVER_PORT ?? 8789);
+
+const receiptCollectionMint: string | null = existsSync(RECEIPT_COLLECTION_PATH)
+  ? (JSON.parse(readFileSync(RECEIPT_COLLECTION_PATH, 'utf8')) as { collectionMint: string }).collectionMint
+  : null;
 
 const idl = JSON.parse(readFileSync(IDL_PATH, 'utf8'));
 const connection = new Connection(DEVNET_URL, 'confirmed');
@@ -119,6 +125,57 @@ const CORS_HEADERS = {
   'access-control-allow-methods': 'GET, POST, OPTIONS',
   'access-control-allow-headers': 'Content-Type, Authorization',
 };
+
+interface DasAssetItem {
+  id: string;
+  content?: {
+    json_uri?: string;
+    metadata?: {
+      name?: string;
+      description?: string;
+      attributes?: { trait_type: string; value: string }[];
+    };
+  };
+}
+
+// Real compressed-NFT receipts, queried live from Helius's DAS index (getAssetsByGroup on the
+// "Ashlar Receipts" collection minted by scripts/lib/receiptClient.ts) rather than from any local
+// record — receipt asset IDs aren't persisted anywhere else today, this collection is the only
+// source of truth. Same DEVNET_URL (Helius RPC) already used for everything else in this file;
+// DAS methods are plain JSON-RPC over that same endpoint, no new dependency or key needed.
+async function fetchReceipts(): Promise<
+  { assetId: string; workflowId: string | null; name: string; jsonUri: string | null }[]
+> {
+  if (!receiptCollectionMint) return [];
+  const res = await fetch(DEVNET_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'ashlar-dashboard',
+      method: 'getAssetsByGroup',
+      params: { groupKey: 'collection', groupValue: receiptCollectionMint, page: 1, limit: 50 },
+    }),
+  });
+  if (!res.ok) throw new Error(`Helius DAS returned ${res.status}`);
+  const body = (await res.json()) as { result?: { items: DasAssetItem[] }; error?: { message: string } };
+  if (body.error) throw new Error(body.error.message);
+
+  const receipts = (body.result?.items ?? []).map((item) => {
+    const attrs = item.content?.metadata?.attributes ?? [];
+    const workflowId = attrs.find((a) => a.trait_type === 'workflowId')?.value ?? null;
+    return {
+      assetId: item.id,
+      workflowId,
+      name: item.content?.metadata?.name ?? 'Ashlar Receipt',
+      jsonUri: item.content?.json_uri ?? null,
+    };
+  });
+  // Most recently minted first — workflow ids are Date.now()-based, so numeric descending order
+  // is chronological, same ordering principle as the live attestation feed.
+  receipts.sort((a, b) => Number(b.workflowId ?? 0) - Number(a.workflowId ?? 0));
+  return receipts;
+}
 
 async function fetchWorkflowSnapshot(workflowPubkey: PublicKey) {
   const workflow = await program.account.workflowInstance.fetch(workflowPubkey);
@@ -280,6 +337,20 @@ const server = createServer((req, res) => {
       return;
     }
 
+    // Real receipts, read-only — see fetchReceipts's doc comment for why this is a live DAS
+    // query rather than a local record.
+    if (req.method === 'GET' && url.pathname === '/receipts') {
+      try {
+        const receipts = await fetchReceipts();
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ receipts }));
+      } catch (err) {
+        res
+          .writeHead(502, { 'content-type': 'application/json' })
+          .end(JSON.stringify({ error: (err as Error).message }));
+      }
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/events') {
       const workflowParam = url.searchParams.get('workflow');
       if (!workflowParam) {
@@ -334,6 +405,7 @@ server.listen(PORT, () => {
   console.log(`[dashboard-server] GET  /events?workflow=<pubkey>      (SSE live feed)`);
   console.log(`[dashboard-server] GET  /workflow/<pubkey>             (initial snapshot)`);
   console.log(`[dashboard-server] GET  /settlement/<workflowId>       (real settlement evidence, if any)`);
+  console.log(`[dashboard-server] GET  /receipts                      (real cNFT receipts, live from Helius DAS)`);
   console.log(`[dashboard-server] POST /deploy                        (real devnet deploy — ${deployStatus})`);
   console.log(`[dashboard-server] POST /resume                        (real override resolution — ${deployStatus})`);
 });

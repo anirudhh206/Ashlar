@@ -54,6 +54,13 @@ export function formatTime(unixSeconds: number): string {
   return new Date(unixSeconds * 1000).toLocaleTimeString();
 }
 
+export interface Receipt {
+  assetId: string;
+  workflowId: string | null;
+  name: string;
+  jsonUri: string | null;
+}
+
 export function explorerAddress(address: string): string {
   return `https://explorer.solana.com/address/${address}?cluster=devnet`;
 }
