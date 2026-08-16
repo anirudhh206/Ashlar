@@ -1,9 +1,11 @@
+import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
-const blockRows: { flexes: number[]; height: number }[] = [
-  { flexes: [2, 3, 1], height: 78 },
-  { flexes: [1, 1], height: 60 },
-  { flexes: [1, 2, 1, 1], height: 92 },
+const trace = [
+  { label: 'fetch_step', detail: 'invoice #1042 · $5.00' },
+  { label: 'manual_approval', detail: 'owner-signed · approved' },
+  { label: 'guardrail_check', detail: 'within cap · allowlisted' },
+  { label: 'mock_settlement', detail: 'x402 · Pyth-priced' },
 ];
 
 export function Hero() {
@@ -66,36 +68,79 @@ export function Hero() {
         </motion.div>
       </div>
 
-      <div className="relative flex flex-col gap-1 w-full max-w-[460px] justify-self-end" aria-hidden>
-        {blockRows.map((row, ri) => (
-          <div key={ri} className="flex gap-1" style={{ height: row.height }}>
-            {row.flexes.map((flex, bi) => (
-              <motion.div
-                key={bi}
-                initial={{ opacity: 0, y: 36, scale: 0.88 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{
-                  duration: 0.65,
-                  delay: 0.2 + (ri * 3 + bi) * 0.09,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
-                style={{ flex }}
-                className="bg-(--color-surface) rounded-xl border border-(--color-hairline) hover:border-(--color-accent) transition-colors"
-              />
-            ))}
-          </div>
-        ))}
+      <div className="relative w-full max-w-[440px] justify-self-end" aria-hidden>
+        {/* soft ambient glow behind the card — the depth cue modern SaaS heroes lean on */}
+        <div
+          className="absolute -inset-x-10 -inset-y-16 rounded-[50%] blur-3xl opacity-40 -z-10"
+          style={{
+            background:
+              'radial-gradient(closest-side, var(--color-accent-glow), transparent 70%)',
+          }}
+        />
+
         <motion.div
-          initial={{ opacity: 0, y: 36, scale: 0.88 }}
+          initial={{ opacity: 0, y: 28, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.65, delay: 0.65, ease: [0.16, 1, 0.3, 1] }}
-          className="flex h-[112px] mt-1 rounded-xl bg-(--color-ink) text-white items-center px-6 font-extrabold text-[15px] tracking-tight"
+          transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+          className="rounded-3xl bg-white/70 backdrop-blur-xl border border-(--color-hairline) shadow-[0_30px_60px_-20px_rgba(20,19,15,0.25)] p-6"
         >
-          COMPILED. FIXED. UNCHANGEABLE.
+          <div className="flex items-center justify-between mb-5">
+            <span className="font-mono text-[11px] tracking-wide text-(--color-mist) uppercase">
+              workflow trace
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-(--color-accent-hover) bg-(--color-accent-soft) rounded-full px-2.5 py-1">
+              <Loader2 className="w-3 h-3 animate-spin" /> live
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            {trace.map((step, i) => (
+              <motion.div
+                key={step.label}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.6 + i * 0.35, ease: [0.2, 0.7, 0.2, 1] }}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-(--color-surface) transition-colors"
+              >
+                <motion.span
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.75 + i * 0.35, duration: 0.35, ease: 'backOut' }}
+                >
+                  <CheckCircle2 className="w-[18px] h-[18px] text-(--color-accent) shrink-0" />
+                </motion.span>
+                <div className="min-w-0">
+                  <p className="font-mono text-[13px] font-medium m-0 truncate">{step.label}</p>
+                  <p className="text-[12px] text-(--color-mist) m-0 truncate">{step.detail}</p>
+                </div>
+              </motion.div>
+            ))}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 + trace.length * 0.35, duration: 0.4 }}
+              className="flex items-center gap-3 px-3 py-2.5 opacity-40"
+            >
+              <Circle className="w-[18px] h-[18px] shrink-0" />
+              <p className="font-mono text-[13px] m-0">attest_and_log</p>
+            </motion.div>
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 + trace.length * 0.35 + 0.3, duration: 0.5 }}
+            className="mt-4 pt-4 border-t border-(--color-hairline) flex items-center justify-between"
+          >
+            <span className="font-mono text-[12px] text-(--color-mist)">status</span>
+            <span className="font-mono text-[12px] font-semibold text-(--color-ink)">
+              Completed
+            </span>
+          </motion.div>
         </motion.div>
-        <p className="text-[13px] leading-[1.6] text-(--color-mist) mt-3 max-w-[40ch]">
-          Like an ashlar block — cut once, fits exactly, never moves. Once compiled, not even the
-          AI can talk the program out of its steps.
+
+        <p className="text-[13px] leading-[1.6] text-(--color-mist) mt-4 max-w-[40ch]">
+          Every one of these calls is a real, signed transaction on Solana devnet — not a mockup.
         </p>
       </div>
     </section>
