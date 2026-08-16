@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, CircleAlert, Loader2, ShieldAlert } from 'lucide-react';
-import { explorerAddress, explorerTx, RELAY_URL, type WorkflowSummary } from '../types.js';
+import { motion, AnimatePresence } from 'motion/react';
+import { CheckCircle2, CircleAlert, Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { explorerAddress, explorerTx, RELAY_URL, short, type WorkflowSummary } from '../types.js';
+import { EmptyState } from '../components/EmptyState.js';
+import { SkeletonRows } from '../components/Skeleton.js';
+import { CopyButton } from '../components/CopyButton.js';
+import { useToast } from '../components/Toast.js';
 
 interface RowState {
   status: 'idle' | 'submitting' | 'error';
@@ -13,6 +18,7 @@ export function Approvals() {
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
+  const toast = useToast();
 
   function load() {
     setStatus('loading');
@@ -45,21 +51,17 @@ export function Approvals() {
       const { signature } = (await res.json()) as { signature: string };
       setRowState((prev) => ({ ...prev, [w.pda]: { status: 'idle', error: null, signature } }));
       setItems((prev) => (prev ? prev.filter((x) => x.pda !== w.pda) : prev));
+      toast.push('success', `${approved ? 'Approved' : 'Rejected'} — real transaction confirmed.`);
     } catch (err) {
       setRowState((prev) => ({
         ...prev,
         [w.pda]: { status: 'error', error: (err as Error).message, signature: null },
       }));
+      toast.push('error', 'Resolution failed — see the error below.');
     }
   }
 
-  if (status === 'loading') {
-    return (
-      <p className="text-[13.5px] text-(--color-mist) flex items-center gap-2">
-        <Loader2 className="w-4 h-4 animate-spin" /> Loading real workflow accounts…
-      </p>
-    );
-  }
+  if (status === 'loading') return <SkeletonRows count={3} />;
   if (status === 'error') {
     return (
       <p className="text-[13.5px] text-red-700 flex items-center gap-1.5">
@@ -69,21 +71,29 @@ export function Approvals() {
   }
   if (!items || items.length === 0) {
     return (
-      <section className="rounded-xl border border-(--color-hairline) bg-white p-5">
-        <p className="text-[13.5px] text-(--color-mist) m-0">
-          No workflow is currently paused in <span className="font-mono">PendingOverrideApproval</span>.
-          A real spend-cap breach shows up here the moment it happens.
-        </p>
-      </section>
+      <EmptyState
+        icon={ShieldCheck}
+        title="Nothing needs your approval"
+        body="No workflow is currently paused in PendingOverrideApproval. A real spend-cap breach shows up here the moment it happens."
+      />
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
+      <AnimatePresence>
       {items.map((w) => {
         const rs = rowState[w.pda];
         return (
-          <section key={w.pda} className="rounded-xl border border-(--color-hairline) bg-white p-5">
+          <motion.section
+            key={w.pda}
+            layout
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97 }}
+            transition={{ duration: 0.3 }}
+            className="rounded-xl border border-(--color-hairline) bg-white p-5"
+          >
             <div className="flex items-center gap-2.5 mb-3">
               <ShieldAlert className="w-5 h-5 text-(--color-accent-hover)" />
               <a
@@ -92,8 +102,9 @@ export function Approvals() {
                 rel="noreferrer"
                 className="font-mono text-[13px] hover:text-(--color-accent)"
               >
-                {w.pda}
+                {short(w.pda)}
               </a>
+              <CopyButton value={w.pda} />
             </div>
             <div className="grid sm:grid-cols-3 gap-3.5 text-[13.5px] mb-5">
               <div>
@@ -146,9 +157,10 @@ export function Approvals() {
                 </a>
               </p>
             )}
-          </section>
+          </motion.section>
         );
       })}
+      </AnimatePresence>
     </div>
   );
 }
