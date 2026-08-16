@@ -52,7 +52,7 @@ async function main(): Promise<void> {
 
   let agentError: string | undefined;
   try {
-    await driveWorkflow(workflowId.toString(), FABRICATED_INVOICE_ID, INJECTED_TRIGGER_NOTE);
+    await driveWorkflow(workflowId.toString(), FABRICATED_INVOICE_ID, { triggerNote: INJECTED_TRIGGER_NOTE });
   } catch (err) {
     agentError = (err as Error).message;
     console.log(`[adversarial-agent-demo] agent loop threw: ${agentError}`);
