@@ -386,7 +386,7 @@ async function testAgentInjection(ctx: PolicyEngineContext, vendor: PublicKey, v
 
   let agentError: string | undefined;
   try {
-    await driveWorkflow(workflowId.toString(), 1, notes[variant]);
+    await driveWorkflow(workflowId.toString(), 1, { triggerNote: notes[variant] });
   } catch (err) {
     agentError = (err as Error).message;
   }
