@@ -5,6 +5,7 @@ import { DeployDialog } from '../components/DeployDialog.js';
 import { EmptyState } from '../components/EmptyState.js';
 import { SkeletonRows } from '../components/Skeleton.js';
 import { CopyButton } from '../components/CopyButton.js';
+import { useLiveEvents } from '../hooks/useLiveEvents.js';
 import {
   explorerAddress,
   RELAY_URL,
@@ -31,8 +32,8 @@ export function Workflows({ onVerify }: WorkflowsProps) {
   const [query, setQuery] = useState('');
   const [showDeploy, setShowDeploy] = useState(false);
 
-  function load() {
-    setStatus('loading');
+  function load(silent = false) {
+    if (!silent) setStatus('loading');
     fetch(`${RELAY_URL}/workflows?limit=100`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`relay returned ${res.status}`);
@@ -47,6 +48,10 @@ export function Workflows({ onVerify }: WorkflowsProps) {
         setStatus('error');
       });
   }
+
+  // Real-time: any attestation landing anywhere (a deploy step, an Approve/Reject resolution)
+  // refreshes this table live instead of waiting for a manual reload.
+  useLiveEvents(() => load(true));
 
   useEffect(load, []);
 
