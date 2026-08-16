@@ -1,7 +1,21 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { CircleAlert, ExternalLink, FileBadge, Loader2 } from 'lucide-react';
+import { CircleAlert, ExternalLink, FileBadge } from 'lucide-react';
 import { explorerAddress, RELAY_URL, type Receipt } from '../types.js';
+import { EmptyState } from '../components/EmptyState.js';
+
+function SkeletonReceipts() {
+  return (
+    <div className="grid sm:grid-cols-2 gap-3">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="rounded-xl border border-(--color-hairline) bg-white p-4 flex flex-col gap-2.5">
+          <div className="skeleton h-4 w-2/3 rounded" />
+          <div className="skeleton h-3 w-1/3 rounded" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function Receipts() {
   const [receipts, setReceipts] = useState<Receipt[] | null>(null);
@@ -25,15 +39,7 @@ export function Receipts() {
       });
   }, []);
 
-  if (status === 'loading') {
-    return (
-      <section className="rounded-xl border border-(--color-hairline) bg-white p-5">
-        <p className="text-[13.5px] text-(--color-mist) m-0 flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading receipts from Helius…
-        </p>
-      </section>
-    );
-  }
+  if (status === 'loading') return <SkeletonReceipts />;
 
   if (status === 'error') {
     return (
@@ -47,12 +53,11 @@ export function Receipts() {
 
   if (!receipts || receipts.length === 0) {
     return (
-      <section className="rounded-xl border border-(--color-hairline) bg-white p-5">
-        <p className="text-[13.5px] text-(--color-mist) m-0">
-          No receipts minted yet — a compressed NFT lands here the moment a workflow settles for
-          real.
-        </p>
-      </section>
+      <EmptyState
+        icon={FileBadge}
+        title="No receipts yet"
+        body="A compressed NFT lands here the moment a workflow settles for real."
+      />
     );
   }
 
@@ -69,7 +74,7 @@ export function Receipts() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: Math.min(i, 8) * 0.04 }}
-            className="rounded-xl border border-(--color-hairline) bg-white p-4"
+            className="rounded-xl border border-(--color-hairline) bg-white p-4 transition-shadow hover:shadow-md"
           >
             <div className="flex items-center gap-2 mb-2.5">
               <FileBadge className="w-4 h-4 text-(--color-accent) shrink-0" />
