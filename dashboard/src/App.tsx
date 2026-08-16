@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Sidebar } from './components/Sidebar.js';
 import { ToastProvider } from './components/Toast.js';
+import { Agent } from './pages/Agent.js';
 import { Overview } from './pages/Overview.js';
 import { Workflows } from './pages/Workflows.js';
 import { Approvals } from './pages/Approvals.js';
@@ -10,9 +11,11 @@ import { Verifier } from './pages/Verifier.js';
 import { Receipts } from './pages/Receipts.js';
 import { GuardrailPolicy } from './pages/GuardrailPolicy.js';
 import { Settings } from './pages/Settings.js';
+import { useLiveEvents } from './hooks/useLiveEvents.js';
 import { RELAY_URL, type WorkflowsListResponse } from './types.js';
 
 export type Page =
+  | 'agent'
   | 'overview'
   | 'workflows'
   | 'approvals'
@@ -23,6 +26,7 @@ export type Page =
   | 'settings';
 
 const TITLES: Record<Page, string> = {
+  agent: 'Agent',
   overview: 'Overview',
   workflows: 'Workflows',
   approvals: 'Approvals',
@@ -34,28 +38,33 @@ const TITLES: Record<Page, string> = {
 };
 
 function AppShell() {
-  const [page, setPage] = useState<Page>('overview');
+  const [page, setPage] = useState<Page>('agent');
   const [verifyPrefill, setVerifyPrefill] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [connected, setConnected] = useState<boolean | null>(null);
 
   // Real count for the sidebar badge, independent of whichever page is currently showing — a
   // cheap extra fetch rather than plumbing shared state across every page just for one number.
-  // Same poll also doubles as a real relay-reachability check for the header's status dot.
+  // Same poll also doubles as a real relay-reachability check for the header's status dot. The
+  // 30s interval is just a fallback net — useLiveEvents below triggers an instant refresh the
+  // moment a real approval/rejection or workflow event actually happens anywhere.
+  function refreshPendingCount() {
+    fetch(`${RELAY_URL}/workflows?limit=300`)
+      .then((res) => res.json() as Promise<WorkflowsListResponse>)
+      .then((data) => {
+        setPendingCount(data.items.filter((w) => w.status === 'pendingOverrideApproval').length);
+        setConnected(true);
+      })
+      .catch(() => setConnected(false));
+  }
+
   useEffect(() => {
-    function refresh() {
-      fetch(`${RELAY_URL}/workflows?limit=300`)
-        .then((res) => res.json() as Promise<WorkflowsListResponse>)
-        .then((data) => {
-          setPendingCount(data.items.filter((w) => w.status === 'pendingOverrideApproval').length);
-          setConnected(true);
-        })
-        .catch(() => setConnected(false));
-    }
-    refresh();
-    const interval = setInterval(refresh, 30_000);
+    refreshPendingCount();
+    const interval = setInterval(refreshPendingCount, 30_000);
     return () => clearInterval(interval);
   }, []);
+
+  useLiveEvents(refreshPendingCount);
 
   function goVerify(pda: string) {
     setVerifyPrefill(pda);
@@ -91,6 +100,7 @@ function AppShell() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             >
+              {page === 'agent' && <Agent onVerify={goVerify} />}
               {page === 'overview' && <Overview onVerify={goVerify} />}
               {page === 'workflows' && <Workflows onVerify={goVerify} />}
               {page === 'approvals' && <Approvals />}
