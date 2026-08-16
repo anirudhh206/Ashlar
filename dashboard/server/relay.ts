@@ -6,13 +6,14 @@
  * ever talks to this relay's own endpoints — it never sees Helius or holds a key.
  *
  * Everything above, plus GET /settlement/<workflowId>, GET /settlements, GET /receipts, GET
- * /workflows, and POST /verify, is genuinely read-only and safe to expose. POST /deploy and POST
- * /resume really do spend real devnet SOL/USDC or resolve a real paused workflow — instead of a
- * bearer secret typed into a browser field, they're gated by a loopback-address check (the
- * request must originate from the same machine this relay runs on). That's the honest boundary
- * for this dashboard's real usage pattern (an operator running it locally); it does NOT make
- * these endpoints safe to expose beyond localhost — doing that would need real session auth,
- * which this project doesn't build.
+ * /workflows, GET /invoices, and POST /verify, is genuinely read-only and safe to expose. POST
+ * /deploy, POST /resume, and POST /agent/trigger really do spend real devnet SOL/USDC, resolve a
+ * real paused workflow, or invoke the real live Claude agent loop — instead of a bearer secret
+ * typed into a browser field, they're gated by a loopback-address check (the request must
+ * originate from the same machine this relay runs on). That's the honest boundary for this
+ * dashboard's real usage pattern (an operator running it locally); it does NOT make these
+ * endpoints safe to expose beyond localhost — doing that would need real session auth, which this
+ * project doesn't build.
  *
  * Usage: pnpm dashboard-server
  */
@@ -24,9 +25,11 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import * as anchor from '@anchor-lang/core';
 import { DEVNET_URL } from '../../scripts/lib/constants.js';
-import { deployWorkflowFromInstruction } from '../../scripts/lib/deployWorkflow.js';
+import { compileAndInitializeWorkflow, deployWorkflowFromInstruction } from '../../scripts/lib/deployWorkflow.js';
 import { loadPolicyEngineContext, submitResumeAfterOverride } from '../../scripts/lib/policyEngineClient.js';
 import { loadChainClient, verifyWorkflow } from '../../verifier/src/index.js';
+import { driveWorkflow, type AgentEvent } from '../../agent/src/driveWorkflow.js';
+import { listMockInvoices } from '../../agent/src/mockInvoices.js';
 import type { Ashlar } from '../../target/types/ashlar.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -57,13 +60,25 @@ interface AttestationEvent {
   timestamp: number;
 }
 
+// Wraps a real AgentEvent from agent/src/driveWorkflow.ts's live Claude loop, tagged with which
+// workflow it belongs to — broadcast over the exact same SSE channel as attestations, so a single
+// EventSource on either the Agent page or the Workflows watch view sees both in one live feed.
+interface AgentEventMessage {
+  type: 'agent';
+  workflow: string;
+  event: AgentEvent;
+}
+
+type RelayEvent = AttestationEvent | AgentEventMessage;
+
 // SSE clients keyed by the workflow pubkey (base58) they're watching, or '*' for clients that
-// opened /events with no ?workflow= param — a global feed of every attestation across the whole
-// program (powers Overview's live "Guardrail activity" list).
+// opened /events with no ?workflow= param — a global feed of every attestation/agent event across
+// the whole program (powers Overview's live "Guardrail activity" list and the sidebar's live
+// pending-approval count).
 const WILDCARD = '*';
 const clientsByWorkflow = new Map<string, Set<ServerResponse>>();
 
-function broadcast(event: AttestationEvent): void {
+function broadcast(event: RelayEvent): void {
   const payload = `data: ${JSON.stringify(event)}\n\n`;
   const perWorkflow = clientsByWorkflow.get(event.workflow);
   if (perWorkflow) for (const res of perWorkflow) res.write(payload);
@@ -307,6 +322,75 @@ const server = createServer((req, res) => {
       return;
     }
 
+    // Real mock invoices, read-only — lets the Agent page's operator pick a genuine trigger
+    // instead of guessing an id. Exactly what agent/src/tools.ts's get_invoice_data tool itself
+    // reads from.
+    if (req.method === 'GET' && url.pathname === '/invoices') {
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ invoices: listMockInvoices() }));
+      return;
+    }
+
+    // The flagship endpoint: compiles a real instruction, initializes a real on-chain workflow,
+    // then hands it to the actual live Claude tool-use loop (agent/src/driveWorkflow.ts) — not
+    // the deterministic /deploy path. Same loopback-only trust boundary as /deploy and /resume:
+    // this spends real Anthropic API calls and can lead to a real settlement. Responds 202 with
+    // the workflow PDA as soon as it's initialized; every subsequent real decision the agent
+    // makes — each tool call, each tool result, pause/finish — streams live over the same /events
+    // SSE channel other workflow-watching already uses, tagged { type: 'agent', workflow, event }.
+    if (req.method === 'POST' && url.pathname === '/agent/trigger') {
+      const clientIp = req.socket.remoteAddress ?? 'unknown';
+      if (!isLoopback(clientIp)) {
+        res.writeHead(403).end('this endpoint only accepts requests from the same machine');
+        return;
+      }
+      if (isDeployRateLimited(clientIp)) {
+        res.writeHead(429).end('too many requests');
+        return;
+      }
+      if (!process.env.ANTHROPIC_API_KEY) {
+        res.writeHead(500).end('ANTHROPIC_API_KEY is not configured on this relay');
+        return;
+      }
+
+      let body: { instruction?: string; invoiceId?: number };
+      try {
+        body = JSON.parse(await readBody(req)) as typeof body;
+      } catch {
+        res.writeHead(400).end('invalid JSON body');
+        return;
+      }
+      if (!body.instruction?.trim() || typeof body.invoiceId !== 'number') {
+        res.writeHead(400).end('instruction and invoiceId are required');
+        return;
+      }
+
+      try {
+        const init = await compileAndInitializeWorkflow(body.instruction, (message) =>
+          console.log('[dashboard-server/agent]', message),
+        );
+        res
+          .writeHead(202, { 'content-type': 'application/json' })
+          .end(JSON.stringify({ workflowPda: init.workflowPda, workflowId: init.workflowId.toString() }));
+
+        driveWorkflow(init.workflowId.toString(), body.invoiceId, {
+          onEvent: (event) => broadcast({ type: 'agent', workflow: init.workflowPda, event }),
+        }).catch((err: unknown) => {
+          console.error('[dashboard-server/agent] driveWorkflow failed:', err);
+          broadcast({
+            type: 'agent',
+            workflow: init.workflowPda,
+            event: { type: 'error', message: (err as Error).message },
+          });
+        });
+      } catch (err) {
+        console.error('[dashboard-server/agent] failed to initialize:', err);
+        res
+          .writeHead(500, { 'content-type': 'application/json' })
+          .end(JSON.stringify({ error: (err as Error).message }));
+      }
+      return;
+    }
+
     // Real owner-signed override resolution for a workflow paused in PendingOverrideApproval —
     // same auth/rate-limit trust boundary as /deploy (approving a spend-cap override is exactly
     // as real and exactly as sensitive as creating a workflow in the first place).
@@ -500,7 +584,13 @@ server.listen(PORT, () => {
   console.log(`[dashboard-server] GET  /settlement/<workflowId>       (real settlement evidence, if any)`);
   console.log(`[dashboard-server] GET  /settlements                   (every real settlement)`);
   console.log(`[dashboard-server] GET  /receipts                      (real cNFT receipts, live from Helius DAS)`);
+  console.log(`[dashboard-server] GET  /invoices                      (real mock invoices for the Agent page)`);
   console.log(`[dashboard-server] POST /verify                        (real independent verification, on demand)`);
   console.log(`[dashboard-server] POST /deploy                        (real devnet deploy — localhost only)`);
   console.log(`[dashboard-server] POST /resume                        (real override resolution — localhost only)`);
+  console.log(
+    `[dashboard-server] POST /agent/trigger                 (real live Claude agent loop — localhost only${
+      process.env.ANTHROPIC_API_KEY ? '' : ', ANTHROPIC_API_KEY not set — will 500'
+    })`,
+  );
 });
