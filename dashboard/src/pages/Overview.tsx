@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   FileBadge,
   GitBranch,
-  Loader2,
   Radio,
   Receipt as ReceiptIcon,
   SearchCheck,
@@ -13,6 +12,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { StatCard } from '../components/StatCard.js';
+import { SkeletonCards, SkeletonRows } from '../components/Skeleton.js';
+import { useToast } from '../components/Toast.js';
 import {
   explorerAddress,
   formatTime,
@@ -41,6 +42,7 @@ export function Overview({ onVerify }: OverviewProps) {
   const [loading, setLoading] = useState(true);
   const resumeInFlight = useRef<Set<string>>(new Set());
   const [, forceRender] = useState(0);
+  const toast = useToast();
 
   useEffect(() => {
     Promise.all([
@@ -86,6 +88,7 @@ export function Overview({ onVerify }: OverviewProps) {
       setWorkflows((prev) =>
         prev ? { ...prev, items: prev.items.map((x) => (x.pda === w.pda ? { ...x, status: 'resolving' } : x)) } : prev,
       );
+      toast.push('success', `${approved ? 'Approved' : 'Rejected'} — real transaction confirmed.`);
     } finally {
       resumeInFlight.current.delete(w.pda);
       forceRender((n) => n + 1);
@@ -94,9 +97,13 @@ export function Overview({ onVerify }: OverviewProps) {
 
   if (loading || !workflows) {
     return (
-      <p className="text-[13.5px] text-(--color-mist) flex items-center gap-2">
-        <Loader2 className="w-4 h-4 animate-spin" /> Loading real system state…
-      </p>
+      <div className="flex flex-col gap-6">
+        <SkeletonCards count={4} />
+        <div className="grid lg:grid-cols-[1.5fr_1fr] gap-4">
+          <SkeletonRows count={5} />
+          <SkeletonRows count={3} />
+        </div>
+      </div>
     );
   }
 
@@ -118,7 +125,7 @@ export function Overview({ onVerify }: OverviewProps) {
       </div>
 
       <div className="grid lg:grid-cols-[1.5fr_1fr] gap-4 items-start">
-        <div className="rounded-xl border border-(--color-hairline) bg-white overflow-hidden">
+        <div className="rounded-xl border border-(--color-hairline) bg-white overflow-hidden transition-shadow hover:shadow-md">
           <div className="flex items-center gap-2 px-5 py-3.5 border-b border-(--color-hairline)">
             <GitBranch className="w-4 h-4 text-(--color-accent-hover)" />
             <h2 className="font-semibold text-[14.5px] m-0">Recent workflows</h2>
@@ -158,7 +165,7 @@ export function Overview({ onVerify }: OverviewProps) {
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="rounded-xl border border-(--color-hairline) bg-white overflow-hidden">
+          <div className="rounded-xl border border-(--color-hairline) bg-white overflow-hidden transition-shadow hover:shadow-md">
             <div className="flex items-center gap-2 px-5 py-3.5 border-b border-(--color-hairline)">
               <ShieldCheck className="w-4 h-4 text-(--color-accent-hover)" />
               <h2 className="font-semibold text-[14.5px] m-0">Needs your approval</h2>
@@ -177,14 +184,14 @@ export function Overview({ onVerify }: OverviewProps) {
                       <button
                         onClick={() => handleResume(w, true)}
                         disabled={resumeInFlight.current.has(w.pda)}
-                        className="text-[11.5px] font-semibold rounded-md bg-(--color-accent) text-white px-3 py-1 disabled:opacity-50"
+                        className="text-[11.5px] font-semibold rounded-md bg-(--color-accent) text-white px-3 py-1 transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
                       >
                         Approve
                       </button>
                       <button
                         onClick={() => handleResume(w, false)}
                         disabled={resumeInFlight.current.has(w.pda)}
-                        className="text-[11.5px] font-semibold rounded-md border border-(--color-hairline) px-3 py-1 disabled:opacity-50"
+                        className="text-[11.5px] font-semibold rounded-md border border-(--color-hairline) px-3 py-1 transition-colors hover:border-red-400 hover:text-red-700 disabled:opacity-50"
                       >
                         Reject
                       </button>
@@ -195,7 +202,7 @@ export function Overview({ onVerify }: OverviewProps) {
             )}
           </div>
 
-          <div className="rounded-xl border border-(--color-hairline) bg-white overflow-hidden">
+          <div className="rounded-xl border border-(--color-hairline) bg-white overflow-hidden transition-shadow hover:shadow-md">
             <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-(--color-hairline)">
               <div className="flex items-center gap-2">
                 <Activity className="w-4 h-4 text-(--color-accent-hover)" />
@@ -236,7 +243,7 @@ export function Overview({ onVerify }: OverviewProps) {
       </div>
 
       <div className="grid lg:grid-cols-[1.5fr_1fr] gap-4 items-start">
-        <div className="rounded-xl border border-(--color-hairline) bg-white overflow-hidden">
+        <div className="rounded-xl border border-(--color-hairline) bg-white overflow-hidden transition-shadow hover:shadow-md">
           <div className="px-5 py-3.5 border-b border-(--color-hairline)">
             <h2 className="font-semibold text-[14.5px] m-0">Proof trail — most recent workflow</h2>
           </div>
@@ -270,7 +277,7 @@ export function Overview({ onVerify }: OverviewProps) {
           </p>
           <button
             onClick={() => recent[0] && onVerify(recent[0].pda)}
-            className="w-full rounded-lg bg-(--color-accent) text-white font-medium text-[13px] py-2.5 hover:bg-(--color-accent-hover) transition-colors"
+            className="w-full rounded-lg bg-(--color-accent) text-white font-medium text-[13px] py-2.5 hover:bg-(--color-accent-hover) transition-transform hover:-translate-y-0.5"
           >
             Run verifier
           </button>
