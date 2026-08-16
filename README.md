@@ -28,6 +28,7 @@ See [`implementation_roadmap.md`](./implementation_roadmap.md) for the full 10-p
 | `agent/`     | AI reasoning layer (no signing authority)                             |
 | `verifier/`  | Standalone proof-chain verification tool                              |
 | `dashboard/` | Live public dashboard                                                 |
+| `landing/`   | Apple-inspired marketing page (`pnpm landing`), built on real, verified project facts |
 | `scripts/`   | Devnet setup and verification scripts                                 |
 | `wallets/`   | Devnet keypairs (gitignored) + `manifest.json` (pubkeys/roles, tracked) |
 

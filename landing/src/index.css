@@ -1,0 +1,55 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans:
+    'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+
+  --color-ink: #0a0a0a;
+  --color-paper: #ffffff;
+  --color-mist: #6e6e73;
+  --color-hairline: #e5e5e7;
+  --color-surface: #f5f5f7;
+
+  --color-accent: #ec3013;
+  --color-accent-hover: #d42a0f;
+  --color-accent-soft: #fff1ee;
+  --color-accent-glow: #ff5a37;
+
+  --animate-marquee: marquee 32s linear infinite;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-wrap: pretty;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

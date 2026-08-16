@@ -1,0 +1,27 @@
+{
+  "name": "@ashlar/landing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Apple-inspired marketing landing page for Ashlar, built on real, verified project facts.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "lucide-react": "^0.475.0",
+    "motion": "^12.4.0",
+    "lenis": "^1.1.20",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.6",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "tailwindcss": "^4.0.6",
+    "vite": "^8.2.1"
+  }
+}
