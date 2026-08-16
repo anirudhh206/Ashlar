@@ -68,6 +68,33 @@ export interface Receipt {
   jsonUri: string | null;
 }
 
+export interface MockInvoice {
+  id: number;
+  amount: number;
+  vendor: string;
+  status: 'approved' | 'pending';
+}
+
+// Mirrors agent/src/driveWorkflow.ts's real AgentEvent union exactly — every real thing the live
+// Claude tool-use loop can do, nothing invented on the frontend side.
+export type AgentEvent =
+  | { type: 'trigger'; message: string }
+  | { type: 'assistant_text'; text: string }
+  | { type: 'tool_call'; name: string; input: Record<string, unknown> }
+  | { type: 'tool_result'; name: string; result: unknown }
+  | { type: 'paused'; pendingAmount: string; spendCap: string }
+  | { type: 'finished'; status: string }
+  | { type: 'max_turns' }
+  | { type: 'error'; message: string };
+
+export interface AgentEventMessage {
+  type: 'agent';
+  workflow: string;
+  event: AgentEvent;
+}
+
+export type RelaySseEvent = AttestationEvent | AgentEventMessage;
+
 // Mirrors verifier/src/verifyWorkflow.ts's real types exactly — this is the actual report shape
 // POST /verify returns, not a UI-invented summary.
 export interface StepVerification {
