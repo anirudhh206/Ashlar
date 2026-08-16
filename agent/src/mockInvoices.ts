@@ -20,3 +20,9 @@ const MOCK_INVOICES: MockInvoice[] = [
 export function getMockInvoice(id: number): MockInvoice | undefined {
   return MOCK_INVOICES.find((invoice) => invoice.id === id);
 }
+
+/** Read-only listing, used by the dashboard's live Agent page to let an operator pick a real
+ * trigger invoice instead of guessing an id. */
+export function listMockInvoices(): MockInvoice[] {
+  return MOCK_INVOICES;
+}
