@@ -1,3 +1,4 @@
+import { motion } from 'motion/react';
 import { Bot, KeyRound, ShieldCheck, Users } from 'lucide-react';
 
 const rules = [
@@ -34,10 +35,16 @@ export function GuardrailPolicy() {
         What's actually enforced by the on-chain program today — not a policy document, a
         description of real code in <code className="font-mono text-[12px]">programs/ashlar/src</code>.
       </p>
-      {rules.map((r) => {
+      {rules.map((r, i) => {
         const Icon = r.icon;
         return (
-          <div key={r.title} className="rounded-xl border border-(--color-hairline) bg-white p-5 flex gap-4">
+          <motion.div
+            key={r.title}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: i * 0.06 }}
+            className="rounded-xl border border-(--color-hairline) bg-white p-5 flex gap-4 transition-shadow hover:shadow-md"
+          >
             <div className="w-9 h-9 rounded-lg bg-(--color-accent-soft) flex items-center justify-center shrink-0">
               <Icon className="w-4.5 h-4.5 text-(--color-accent-hover)" />
             </div>
@@ -52,7 +59,7 @@ export function GuardrailPolicy() {
               </div>
               <p className="text-[13px] text-(--color-mist) leading-relaxed m-0">{r.body}</p>
             </div>
-          </div>
+          </motion.div>
         );
       })}
     </div>
