@@ -5,26 +5,28 @@
  * and pushes sanitized events to connected browsers over Server-Sent Events. The browser only
  * ever talks to this relay's own endpoints — it never sees Helius or holds a key.
  *
- * Everything above, plus GET /settlement/<workflowId> (real settlement evidence read from disk)
- * and GET /receipts (real compressed-NFT receipts, queried live from Helius's DAS index), is
- * genuinely read-only and safe to expose. If DASHBOARD_DEPLOY_SECRET is set, this relay also
- * exposes two authenticated write endpoints — POST /deploy and POST /resume — which really do
- * spend real devnet SOL/USDC or resolve a real paused workflow; see the doc comments on each
- * route below. Without the env var set, both always respond 500 and nothing about the read-only
- * behavior above changes.
+ * Everything above, plus GET /settlement/<workflowId>, GET /settlements, GET /receipts, GET
+ * /workflows, and POST /verify, is genuinely read-only and safe to expose. POST /deploy and POST
+ * /resume really do spend real devnet SOL/USDC or resolve a real paused workflow — instead of a
+ * bearer secret typed into a browser field, they're gated by a loopback-address check (the
+ * request must originate from the same machine this relay runs on). That's the honest boundary
+ * for this dashboard's real usage pattern (an operator running it locally); it does NOT make
+ * these endpoints safe to expose beyond localhost — doing that would need real session auth,
+ * which this project doesn't build.
  *
  * Usage: pnpm dashboard-server
  */
 import { Program, AnchorProvider, Wallet } from '@anchor-lang/core';
 import { Connection, Keypair, PublicKey, type KeyedAccountInfo } from '@solana/web3.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import * as anchor from '@anchor-lang/core';
 import { DEVNET_URL } from '../../scripts/lib/constants.js';
 import { deployWorkflowFromInstruction } from '../../scripts/lib/deployWorkflow.js';
 import { loadPolicyEngineContext, submitResumeAfterOverride } from '../../scripts/lib/policyEngineClient.js';
+import { loadChainClient, verifyWorkflow } from '../../verifier/src/index.js';
 import type { Ashlar } from '../../target/types/ashlar.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -55,14 +57,18 @@ interface AttestationEvent {
   timestamp: number;
 }
 
-// SSE clients keyed by the workflow pubkey (base58) they're watching.
+// SSE clients keyed by the workflow pubkey (base58) they're watching, or '*' for clients that
+// opened /events with no ?workflow= param — a global feed of every attestation across the whole
+// program (powers Overview's live "Guardrail activity" list).
+const WILDCARD = '*';
 const clientsByWorkflow = new Map<string, Set<ServerResponse>>();
 
 function broadcast(event: AttestationEvent): void {
-  const subscribers = clientsByWorkflow.get(event.workflow);
-  if (!subscribers) return;
   const payload = `data: ${JSON.stringify(event)}\n\n`;
-  for (const res of subscribers) res.write(payload);
+  const perWorkflow = clientsByWorkflow.get(event.workflow);
+  if (perWorkflow) for (const res of perWorkflow) res.write(payload);
+  const global = clientsByWorkflow.get(WILDCARD);
+  if (global) for (const res of global) res.write(payload);
 }
 
 function decodeAttestationAccount(keyedInfo: KeyedAccountInfo): AttestationEvent | null {
@@ -95,8 +101,9 @@ connection.onProgramAccountChange(
   { commitment: 'confirmed', filters: [{ memcmp: attestationMemcmp }] },
 );
 
-// Basic per-IP rate limit for the write endpoint below — same pattern as agent/src/server.ts's
-// /trigger limiter, tightened since each accepted request is a real, real-cost devnet deploy.
+// Basic per-IP rate limit for the write endpoints below — same pattern as agent/src/server.ts's
+// /trigger limiter, tightened since each accepted request is a real, real-cost devnet action.
+// Defense-in-depth alongside the loopback check below, not the primary boundary.
 const DEPLOY_RATE_LIMIT_WINDOW_MS = 60_000;
 const DEPLOY_RATE_LIMIT_MAX_REQUESTS = 5;
 const deployRequestTimestamps = new Map<string, number[]>();
@@ -109,6 +116,15 @@ function isDeployRateLimited(ip: string): boolean {
   timestamps.push(now);
   deployRequestTimestamps.set(ip, timestamps);
   return timestamps.length > DEPLOY_RATE_LIMIT_MAX_REQUESTS;
+}
+
+// The real auth boundary for /deploy and /resume: a browser can't hold a genuine server-side
+// secret, so instead of asking one to be typed into a field, these endpoints only ever accept
+// requests whose TCP connection actually originates from this same machine. Handles both IPv4
+// and the IPv6-mapped forms Node reports for loopback connections.
+function isLoopback(address: string | undefined): boolean {
+  if (!address) return false;
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
 }
 
 function readBody(req: IncomingMessage): Promise<string> {
@@ -177,6 +193,40 @@ async function fetchReceipts(): Promise<
   return receipts;
 }
 
+function summarizeWorkflowAccount(publicKey: PublicKey, workflow: Record<string, unknown>) {
+  return {
+    pda: publicKey.toBase58(),
+    workflowId: (workflow.workflowId as anchor.BN).toString(),
+    owner: (workflow.owner as PublicKey).toBase58(),
+    workflowType: Object.keys(workflow.workflowType as object)[0],
+    status: Object.keys(workflow.status as object)[0],
+    currentStep: workflow.currentStep as number,
+    spendCap: (workflow.spendCap as anchor.BN).toString(),
+    pendingAmount: (workflow.pendingAmount as anchor.BN).toString(),
+    pendingRecipient: (workflow.pendingRecipient as PublicKey).toBase58(),
+  };
+}
+
+// Real, every WorkflowInstance account this program has ever created (258 as of this session —
+// every phase's testing accumulates here, not a curated demo set). Sorted most-recent-first
+// (workflow ids are Date.now()-based) and capped, but `total` always reflects the real full
+// count so the UI can say "showing N of TOTAL" honestly rather than hiding the volume.
+async function fetchAllWorkflows(limit: number) {
+  const accounts = await program.account.workflowInstance.all();
+  const summaries = accounts.map((a) => summarizeWorkflowAccount(a.publicKey, a.account as Record<string, unknown>));
+  summaries.sort((a, b) => Number(b.workflowId) - Number(a.workflowId));
+  return { total: summaries.length, items: summaries.slice(0, limit) };
+}
+
+// Real settlement evidence for every workflow that has actually settled — every file
+// scripts/lib/splitSettlement.ts has ever written to disk, not a curated subset.
+function fetchAllSettlements(): unknown[] {
+  if (!existsSync(SETTLEMENTS_DIR)) return [];
+  return readdirSync(SETTLEMENTS_DIR)
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => JSON.parse(readFileSync(path.join(SETTLEMENTS_DIR, f), 'utf8')));
+}
+
 async function fetchWorkflowSnapshot(workflowPubkey: PublicKey) {
   const workflow = await program.account.workflowInstance.fetch(workflowPubkey);
   const [ledgerPda] = PublicKey.findProgramAddressSync(
@@ -185,16 +235,7 @@ async function fetchWorkflowSnapshot(workflowPubkey: PublicKey) {
   );
   const ledger = await program.account.ledger.fetch(ledgerPda);
   return {
-    workflow: {
-      workflowId: (workflow.workflowId as anchor.BN).toString(),
-      owner: workflow.owner.toBase58(),
-      workflowType: Object.keys(workflow.workflowType as object)[0],
-      status: Object.keys(workflow.status as object)[0],
-      currentStep: workflow.currentStep,
-      spendCap: workflow.spendCap.toString(),
-      pendingAmount: (workflow.pendingAmount as anchor.BN).toString(),
-      pendingRecipient: (workflow.pendingRecipient as PublicKey).toBase58(),
-    },
+    workflow: summarizeWorkflowAccount(workflowPubkey, workflow as unknown as Record<string, unknown>),
     ledger: {
       entries: ledger.entries.map((e: Record<string, unknown>) => ({
         stepIndex: e.stepIndex,
@@ -225,18 +266,12 @@ const server = createServer((req, res) => {
     // existing /events SSE stream, exactly like watching any other workflow.
     if (req.method === 'POST' && url.pathname === '/deploy') {
       const clientIp = req.socket.remoteAddress ?? 'unknown';
+      if (!isLoopback(clientIp)) {
+        res.writeHead(403).end('this endpoint only accepts requests from the same machine');
+        return;
+      }
       if (isDeployRateLimited(clientIp)) {
         res.writeHead(429).end('too many requests');
-        return;
-      }
-
-      const secret = process.env.DASHBOARD_DEPLOY_SECRET;
-      if (!secret) {
-        res.writeHead(500).end('DASHBOARD_DEPLOY_SECRET is not configured');
-        return;
-      }
-      if (req.headers.authorization !== `Bearer ${secret}`) {
-        res.writeHead(401).end('unauthorized');
         return;
       }
 
@@ -277,18 +312,12 @@ const server = createServer((req, res) => {
     // as real and exactly as sensitive as creating a workflow in the first place).
     if (req.method === 'POST' && url.pathname === '/resume') {
       const clientIp = req.socket.remoteAddress ?? 'unknown';
+      if (!isLoopback(clientIp)) {
+        res.writeHead(403).end('this endpoint only accepts requests from the same machine');
+        return;
+      }
       if (isDeployRateLimited(clientIp)) {
         res.writeHead(429).end('too many requests');
-        return;
-      }
-
-      const secret = process.env.DASHBOARD_DEPLOY_SECRET;
-      if (!secret) {
-        res.writeHead(500).end('DASHBOARD_DEPLOY_SECRET is not configured');
-        return;
-      }
-      if (req.headers.authorization !== `Bearer ${secret}`) {
-        res.writeHead(401).end('unauthorized');
         return;
       }
 
@@ -337,6 +366,73 @@ const server = createServer((req, res) => {
       return;
     }
 
+    // Real, public, safe info only — deliberately never the RPC URL, which embeds the Helius API
+    // key as a query param. The whole point of this relay is that the browser never sees that key.
+    if (req.method === 'GET' && url.pathname === '/info') {
+      res
+        .writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ programId: programId.toBase58(), network: 'devnet' }));
+      return;
+    }
+
+    // Real, every WorkflowInstance account — see fetchAllWorkflows's doc comment.
+    if (req.method === 'GET' && url.pathname === '/workflows') {
+      const limit = Number(url.searchParams.get('limit') ?? 100);
+      try {
+        const result = await fetchAllWorkflows(limit);
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(result));
+      } catch (err) {
+        res
+          .writeHead(502, { 'content-type': 'application/json' })
+          .end(JSON.stringify({ error: (err as Error).message }));
+      }
+      return;
+    }
+
+    // Real settlement evidence for every settled workflow — see fetchAllSettlements's doc comment.
+    if (req.method === 'GET' && url.pathname === '/settlements') {
+      try {
+        res
+          .writeHead(200, { 'content-type': 'application/json' })
+          .end(JSON.stringify({ settlements: fetchAllSettlements() }));
+      } catch (err) {
+        res
+          .writeHead(500, { 'content-type': 'application/json' })
+          .end(JSON.stringify({ error: (err as Error).message }));
+      }
+      return;
+    }
+
+    // Real independent verification, on demand — imports the actual @ashlar/verifier logic
+    // (verifier/src/index.ts), which builds its own throwaway-keypair read-only chain client
+    // rather than reusing this relay's `program`/`connection` — preserving the verifier's "zero
+    // trust in Ashlar's own client code" property even when triggered from this dashboard.
+    // Read-only: doesn't change any state or spend anything, so no auth is needed, matching the
+    // CLI's own "no login required" framing.
+    if (req.method === 'POST' && url.pathname === '/verify') {
+      let body: { workflowPda?: string };
+      try {
+        body = JSON.parse(await readBody(req)) as typeof body;
+      } catch {
+        res.writeHead(400).end('invalid JSON body');
+        return;
+      }
+      if (!body.workflowPda) {
+        res.writeHead(400).end('workflowPda is required');
+        return;
+      }
+      try {
+        const client = loadChainClient(DEVNET_URL);
+        const report = await verifyWorkflow(client, new PublicKey(body.workflowPda));
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(report));
+      } catch (err) {
+        res
+          .writeHead(500, { 'content-type': 'application/json' })
+          .end(JSON.stringify({ error: (err as Error).message }));
+      }
+      return;
+    }
+
     // Real receipts, read-only — see fetchReceipts's doc comment for why this is a live DAS
     // query rather than a local record.
     if (req.method === 'GET' && url.pathname === '/receipts') {
@@ -352,11 +448,9 @@ const server = createServer((req, res) => {
     }
 
     if (req.method === 'GET' && url.pathname === '/events') {
-      const workflowParam = url.searchParams.get('workflow');
-      if (!workflowParam) {
-        res.writeHead(400).end('missing ?workflow=<pubkey>');
-        return;
-      }
+      // No ?workflow= param subscribes to every attestation program-wide (WILDCARD) — used by
+      // Overview's live activity feed. A specific pubkey keeps the existing per-workflow feed.
+      const workflowParam = url.searchParams.get('workflow') ?? WILDCARD;
       res.writeHead(200, {
         'content-type': 'text/event-stream',
         'cache-control': 'no-cache',
@@ -398,14 +492,15 @@ const server = createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  const deployStatus = process.env.DASHBOARD_DEPLOY_SECRET
-    ? 'enabled'
-    : 'disabled, set DASHBOARD_DEPLOY_SECRET to enable';
   console.log(`[dashboard-server] listening on http://localhost:${PORT}`);
-  console.log(`[dashboard-server] GET  /events?workflow=<pubkey>      (SSE live feed)`);
-  console.log(`[dashboard-server] GET  /workflow/<pubkey>             (initial snapshot)`);
+  console.log(`[dashboard-server] GET  /info                          (public program id, network)`);
+  console.log(`[dashboard-server] GET  /events[?workflow=<pubkey>]    (SSE live feed — global if no param)`);
+  console.log(`[dashboard-server] GET  /workflow/<pubkey>             (single workflow snapshot)`);
+  console.log(`[dashboard-server] GET  /workflows[?limit=N]           (every real WorkflowInstance account)`);
   console.log(`[dashboard-server] GET  /settlement/<workflowId>       (real settlement evidence, if any)`);
+  console.log(`[dashboard-server] GET  /settlements                   (every real settlement)`);
   console.log(`[dashboard-server] GET  /receipts                      (real cNFT receipts, live from Helius DAS)`);
-  console.log(`[dashboard-server] POST /deploy                        (real devnet deploy — ${deployStatus})`);
-  console.log(`[dashboard-server] POST /resume                        (real override resolution — ${deployStatus})`);
+  console.log(`[dashboard-server] POST /verify                        (real independent verification, on demand)`);
+  console.log(`[dashboard-server] POST /deploy                        (real devnet deploy — localhost only)`);
+  console.log(`[dashboard-server] POST /resume                        (real override resolution — localhost only)`);
 });
