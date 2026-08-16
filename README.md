@@ -286,7 +286,15 @@ responsible for having its own ATA ready before it can receive funds.
 - [x] **Live Public Dashboard** (`dashboard/`) — a small Node relay (`pnpm dashboard-server`)
       holds the RPC/Helius connection and subscribes to `Attestation` account changes, pushing
       sanitized events to a React + Vite frontend over Server-Sent Events. The browser never talks
-      to Helius directly and never sees an API key.
+      to Helius directly and never sees an API key. All of this is genuinely read-only and safe to
+      expose. If `DASHBOARD_DEPLOY_SECRET` is set, the same relay also exposes one authenticated
+      write endpoint, `POST /deploy` — the dashboard's "Deploy a workflow" form calls it to compile
+      an English instruction and run it through all 5 real on-chain gates, the same
+      `scripts/lib/deployWorkflow.ts` logic `pnpm deploy-workflow` uses on the CLI. Without the env
+      var configured, `/deploy` always 500s and the relay's behavior is unchanged. The bearer
+      secret + a per-IP rate limit are demo-appropriate protection for a single-operator local
+      instance, not hardening for an untrusted public deployment — every accepted request spends
+      real devnet SOL/USDC.
 - [x] Verified against real devnet, not just typechecked: `pnpm verify` run against a real
       in-progress workflow (full PASS, every step's signer and hash independently confirmed), a
       workflow that paused and was resumed via `resume_after_override` (correctly followed the

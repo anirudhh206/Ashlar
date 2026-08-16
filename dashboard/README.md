@@ -13,8 +13,20 @@ Two pieces, deliberately split so the Helius API key never reaches a browser:
   `connection.onProgramAccountChange` (filtered server-side to just `Attestation` accounts via
   the Anchor account discriminator), and pushes sanitized JSON events to connected browsers over
   **Server-Sent Events**. Also serves `GET /workflow/:pubkey` for an initial snapshot.
-- **`src/`** — a React + Vite frontend. Talks only to the relay's own `/events` and `/workflow/:id`
-  endpoints — it never touches Helius directly and never sees a key.
+- **`src/`** — a React + Vite frontend. Talks only to the relay's own `/events`, `/workflow/:id`,
+  and `/deploy` endpoints — it never touches Helius directly and never sees a key.
+
+## Deploying a workflow from the browser
+
+Everything above is read-only. If `DASHBOARD_DEPLOY_SECRET` is set in the root `.env`, the relay
+also exposes `POST /deploy` — a real, authenticated write endpoint. The dashboard's "Deploy a
+workflow" form sends an English instruction there; the relay compiles it and runs it through all 5
+real on-chain gates via `scripts/lib/deployWorkflow.ts` (the same code `pnpm deploy-workflow` uses
+on the CLI), responding as soon as the workflow PDA exists so the frontend can switch into the
+existing live-watch view for the rest. Gated behind a bearer token (the "operator token" field in
+the form) plus a per-IP rate limit — enough for a single-operator local demo, not hardened for an
+untrusted public deployment. Every accepted request spends real devnet SOL/USDC. Leave
+`DASHBOARD_DEPLOY_SECRET` unset to keep the relay strictly read-only.
 
 ## Usage
 

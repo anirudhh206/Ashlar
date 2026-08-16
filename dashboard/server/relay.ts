@@ -5,15 +5,22 @@
  * and pushes sanitized events to connected browsers over Server-Sent Events. The browser only
  * ever talks to this relay's own endpoints — it never sees Helius or holds a key.
  *
+ * Everything above is genuinely read-only and safe to expose. If DASHBOARD_DEPLOY_SECRET is set,
+ * this relay also exposes one authenticated write endpoint, POST /deploy, which really does
+ * compile and deploy a workflow on devnet (spending real devnet SOL/USDC) — see the doc comment
+ * above that route below. Without the env var set, /deploy always responds 500 and nothing about
+ * the read-only behavior above changes.
+ *
  * Usage: pnpm dashboard-server
  */
 import { Program, AnchorProvider, Wallet } from '@anchor-lang/core';
 import { Connection, Keypair, PublicKey, type KeyedAccountInfo } from '@solana/web3.js';
-import { createServer, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { DEVNET_URL } from '../../scripts/lib/constants.js';
+import { deployWorkflowFromInstruction } from '../../scripts/lib/deployWorkflow.js';
 import type { Ashlar } from '../../target/types/ashlar.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -78,6 +85,37 @@ connection.onProgramAccountChange(
   { commitment: 'confirmed', filters: [{ memcmp: attestationMemcmp }] },
 );
 
+// Basic per-IP rate limit for the write endpoint below — same pattern as agent/src/server.ts's
+// /trigger limiter, tightened since each accepted request is a real, real-cost devnet deploy.
+const DEPLOY_RATE_LIMIT_WINDOW_MS = 60_000;
+const DEPLOY_RATE_LIMIT_MAX_REQUESTS = 5;
+const deployRequestTimestamps = new Map<string, number[]>();
+
+function isDeployRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const timestamps = (deployRequestTimestamps.get(ip) ?? []).filter(
+    (t) => now - t < DEPLOY_RATE_LIMIT_WINDOW_MS,
+  );
+  timestamps.push(now);
+  deployRequestTimestamps.set(ip, timestamps);
+  return timestamps.length > DEPLOY_RATE_LIMIT_MAX_REQUESTS;
+}
+
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+const CORS_HEADERS = {
+  'access-control-allow-origin': process.env.DASHBOARD_CORS_ORIGIN ?? '*',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-headers': 'Content-Type, Authorization',
+};
+
 async function fetchWorkflowSnapshot(workflowPubkey: PublicKey) {
   const workflow = await program.account.workflowInstance.fetch(workflowPubkey);
   const [ledgerPda] = PublicKey.findProgramAddressSync(
@@ -105,8 +143,70 @@ async function fetchWorkflowSnapshot(workflowPubkey: PublicKey) {
 }
 
 const server = createServer((req, res) => {
+  for (const [key, value] of Object.entries(CORS_HEADERS)) res.setHeader(key, value);
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204).end();
+    return;
+  }
+
   void (async () => {
     const url = new URL(req.url ?? '', `http://localhost:${PORT}`);
+
+    // Real devnet deploy, gated behind a bearer secret + rate limit — see the module doc comment.
+    // Compiles `instruction` with @ashlar/compiler and walks it through all five real on-chain
+    // gates via scripts/lib/deployWorkflow.ts (the same code scripts/devnet/deploy-workflow.ts
+    // uses). Responds 202 with the workflow PDA as soon as it exists (after step 1/5) — the
+    // remaining steps continue in the background and the browser watches them land live via the
+    // existing /events SSE stream, exactly like watching any other workflow.
+    if (req.method === 'POST' && url.pathname === '/deploy') {
+      const clientIp = req.socket.remoteAddress ?? 'unknown';
+      if (isDeployRateLimited(clientIp)) {
+        res.writeHead(429).end('too many requests');
+        return;
+      }
+
+      const secret = process.env.DASHBOARD_DEPLOY_SECRET;
+      if (!secret) {
+        res.writeHead(500).end('DASHBOARD_DEPLOY_SECRET is not configured');
+        return;
+      }
+      if (req.headers.authorization !== `Bearer ${secret}`) {
+        res.writeHead(401).end('unauthorized');
+        return;
+      }
+
+      let body: { instruction?: string };
+      try {
+        body = JSON.parse(await readBody(req)) as typeof body;
+      } catch {
+        res.writeHead(400).end('invalid JSON body');
+        return;
+      }
+      if (!body.instruction || !body.instruction.trim()) {
+        res.writeHead(400).end('instruction is required');
+        return;
+      }
+
+      let responded = false;
+      deployWorkflowFromInstruction(body.instruction, {
+        log: (message) => console.log('[dashboard-server/deploy]', message),
+        onInitialized: (workflowPda) => {
+          responded = true;
+          res
+            .writeHead(202, { 'content-type': 'application/json' })
+            .end(JSON.stringify({ workflowPda }));
+        },
+      }).catch((err: unknown) => {
+        console.error('[dashboard-server/deploy] failed:', err);
+        if (!responded) {
+          res
+            .writeHead(500, { 'content-type': 'application/json' })
+            .end(JSON.stringify({ error: (err as Error).message }));
+        }
+      });
+      return;
+    }
 
     if (req.method === 'GET' && url.pathname === '/events') {
       const workflowParam = url.searchParams.get('workflow');
@@ -156,6 +256,10 @@ const server = createServer((req, res) => {
 
 server.listen(PORT, () => {
   console.log(`[dashboard-server] listening on http://localhost:${PORT}`);
-  console.log(`[dashboard-server] GET /events?workflow=<pubkey>  (SSE live feed)`);
-  console.log(`[dashboard-server] GET /workflow/<pubkey>         (initial snapshot)`);
+  console.log(`[dashboard-server] GET  /events?workflow=<pubkey>  (SSE live feed)`);
+  console.log(`[dashboard-server] GET  /workflow/<pubkey>         (initial snapshot)`);
+  console.log(
+    `[dashboard-server] POST /deploy                    (real devnet deploy — ` +
+      `${process.env.DASHBOARD_DEPLOY_SECRET ? 'enabled' : 'disabled, set DASHBOARD_DEPLOY_SECRET to enable'})`,
+  );
 });

@@ -1,0 +1,117 @@
+/**
+ * Shared deploy sequence: compiles an English instruction with @ashlar/compiler and walks it
+ * through all five real on-chain gates plus receipt minting. Extracted from
+ * scripts/devnet/deploy-workflow.ts so both the CLI script and the dashboard relay's
+ * authenticated POST /deploy endpoint call the exact same real logic, not two copies of it.
+ */
+import * as anchor from '@anchor-lang/core';
+import { compileInstruction } from '../../compiler/src/index.js';
+import {
+  loadPolicyEngineContext,
+  resolveVendorPubkey,
+  initializeWorkflow,
+  submitFetchStep,
+  submitComplianceOrApprovalDecision,
+  submitGuardrailCheck,
+  submitMockSettlement,
+  getWorkflow,
+  explorerLink,
+  type WorkflowTypeArg,
+} from './policyEngineClient.js';
+import { executeSplitSettlement } from './splitSettlement.js';
+import { mintReceipt, buildReceiptNotification } from './receiptClient.js';
+import { notifyOwner } from './notify.js';
+
+export interface DeployWorkflowHooks {
+  /** Fired the moment the WorkflowInstance PDA exists (after step 1/5) — the earliest point a
+   * caller can usefully react, well before the remaining ~4 transactions + receipt mint finish. */
+  onInitialized?: (workflowPda: string) => void;
+  log?: (message: string) => void;
+}
+
+export interface DeployWorkflowResult {
+  instruction: string;
+  workflowType: string;
+  workflowPda: string;
+  ledgerPda: string;
+  receiptAssetId: string;
+  receiptExplorerLink: string;
+  finalStatus: unknown;
+}
+
+export async function deployWorkflowFromInstruction(
+  instruction: string,
+  hooks: DeployWorkflowHooks = {},
+): Promise<DeployWorkflowResult> {
+  const log = hooks.log ?? (() => {});
+  const compiled = compileInstruction(instruction);
+  log(`Instruction: "${instruction}"`);
+  log(`Compiled as: ${compiled.workflowType}`);
+
+  const ctx = await loadPolicyEngineContext();
+  const vendor = resolveVendorPubkey();
+
+  let spendCapUsd: bigint;
+  let workflowTypeArg: WorkflowTypeArg;
+  if (compiled.workflowType === 'recurring-conditional-payment') {
+    spendCapUsd = BigInt(compiled.parameters.spendCap.perPayment);
+    workflowTypeArg = { recurringConditionalPayment: {} };
+  } else {
+    spendCapUsd = BigInt(compiled.parameters.amount);
+    workflowTypeArg = { oneTimeApprovalGatedTransfer: {} };
+  }
+  const spendCap = new anchor.BN(spendCapUsd.toString());
+  const workflowId = new anchor.BN(Date.now());
+
+  const { signature: initSig, pdas } = await initializeWorkflow(ctx, {
+    workflowId,
+    workflowType: workflowTypeArg,
+    spendCap,
+    allowlist: [vendor],
+  });
+  const workflowPda = pdas.workflow.toBase58();
+  log(`Workflow PDA: ${workflowPda}`);
+  log(`Vendor (allowlist/recipient stand-in): ${vendor.toBase58()}`);
+  log(`[1/5] initialize_workflow: ${initSig}\n      ${explorerLink(initSig)}`);
+  hooks.onInitialized?.(workflowPda);
+
+  const fetchSig = await submitFetchStep(ctx, workflowId, new anchor.BN(1), spendCap);
+  log(`[2/5] fetch_step: ${fetchSig}\n      ${explorerLink(fetchSig)}`);
+
+  const decisionSig = await submitComplianceOrApprovalDecision(ctx, workflowId, true);
+  const decisionLabel =
+    compiled.workflowType === 'recurring-conditional-payment' ? 'compliance_check' : 'manual_approval';
+  log(`[3/5] ${decisionLabel}: ${decisionSig}\n      ${explorerLink(decisionSig)}`);
+
+  const guardrailSig = await submitGuardrailCheck(ctx, workflowId, spendCap, vendor);
+  log(`[4/5] guardrail_check: ${guardrailSig}\n      ${explorerLink(guardrailSig)}`);
+
+  const { evidence, onChainReference } = await executeSplitSettlement(
+    workflowId.toString(),
+    Number(spendCapUsd),
+    vendor,
+  );
+  log(
+    `      Split settlement: vendor ${evidence.splits.vendorUsdcAtomic} / tax-reserve ` +
+      `${evidence.splits.taxReserveUsdcAtomic} / yield-pool ${evidence.splits.yieldPoolUsdcAtomic} (USDC atomic units)`,
+  );
+  const settlementSig = await submitMockSettlement(ctx, workflowId, onChainReference);
+  log(`[5/5] mock_settlement: ${settlementSig}\n      ${explorerLink(settlementSig)}`);
+
+  const receipt = await mintReceipt(ctx.owner.secretKey, workflowId.toString(), evidence);
+  log(`Receipt minted: ${receipt.assetId}\n      ${receipt.explorerLink}`);
+  await notifyOwner(buildReceiptNotification(workflowId.toString(), receipt));
+
+  const workflowAccount = await getWorkflow(ctx, pdas.workflow);
+  log(`Final status: ${JSON.stringify(workflowAccount.status)}`);
+
+  return {
+    instruction,
+    workflowType: compiled.workflowType,
+    workflowPda,
+    ledgerPda: pdas.ledger.toBase58(),
+    receiptAssetId: receipt.assetId,
+    receiptExplorerLink: receipt.explorerLink,
+    finalStatus: workflowAccount.status,
+  };
+}
