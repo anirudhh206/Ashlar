@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
+import { motion } from 'motion/react';
 import { CircleAlert, Loader2, X } from 'lucide-react';
 import { RELAY_URL } from '../types.js';
+import { useToast } from './Toast.js';
 
 interface DeployDialogProps {
   onClose: () => void;
@@ -11,6 +13,7 @@ export function DeployDialog({ onClose, onDeployed }: DeployDialogProps) {
   const [instruction, setInstruction] = useState('');
   const [status, setStatus] = useState<'idle' | 'deploying' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -26,19 +29,33 @@ export function DeployDialog({ onClose, onDeployed }: DeployDialogProps) {
       });
       if (!res.ok) throw new Error(`relay returned ${res.status}: ${await res.text()}`);
       const { workflowPda } = (await res.json()) as { workflowPda: string };
+      toast.push('success', `Workflow deployed — step 1/5 confirmed, the rest is landing live.`);
       onDeployed(workflowPda);
     } catch (err) {
       setStatus('error');
       setError((err as Error).message);
+      toast.push('error', 'Deploy failed — see the error below.');
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6">
-      <div className="w-full max-w-[520px] rounded-2xl bg-white border border-(--color-hairline) p-6 shadow-2xl">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-[520px] rounded-2xl bg-white border border-(--color-hairline) p-6 shadow-2xl"
+      >
         <div className="flex items-center justify-between mb-1">
           <h2 className="font-semibold text-[16px] m-0">New workflow</h2>
-          <button onClick={onClose} className="text-(--color-mist) hover:text-(--color-ink)">
+          <button onClick={onClose} className="text-(--color-mist) hover:text-(--color-ink) transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -67,7 +84,7 @@ export function DeployDialog({ onClose, onDeployed }: DeployDialogProps) {
             <button
               type="submit"
               disabled={status === 'deploying'}
-              className="inline-flex items-center gap-2 rounded-lg bg-(--color-accent) text-white font-medium text-[13.5px] px-5 py-2 transition-colors hover:bg-(--color-accent-hover) disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-(--color-accent) text-white font-medium text-[13.5px] px-5 py-2 transition-transform hover:-translate-y-0.5 hover:bg-(--color-accent-hover) disabled:opacity-50 disabled:hover:translate-y-0"
             >
               {status === 'deploying' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               {status === 'deploying' ? 'Deploying…' : 'Deploy'}
@@ -79,7 +96,7 @@ export function DeployDialog({ onClose, onDeployed }: DeployDialogProps) {
             <CircleAlert className="w-3.5 h-3.5 shrink-0" /> {error}
           </p>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
