@@ -1,3 +1,4 @@
+import { motion } from 'motion/react';
 import {
   LayoutGrid,
   GitBranch,
@@ -26,6 +27,46 @@ const systemLinks: { id: Page; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
+function NavButton({
+  id,
+  label,
+  icon: Icon,
+  active,
+  onNavigate,
+  badge,
+}: {
+  id: Page;
+  label: string;
+  icon: typeof LayoutGrid;
+  active: boolean;
+  onNavigate: (p: Page) => void;
+  badge?: number | undefined;
+}) {
+  return (
+    <button
+      onClick={() => onNavigate(id)}
+      className={`relative flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] text-left transition-colors ${
+        active ? 'text-white font-medium' : 'text-white/60 hover:text-white hover:bg-white/5'
+      }`}
+    >
+      {active && (
+        <motion.span
+          layoutId="sidebar-active"
+          className="absolute inset-0 rounded-lg bg-white/10"
+          transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+        />
+      )}
+      <Icon className="w-4 h-4 shrink-0 relative" />
+      <span className="flex-1 relative">{label}</span>
+      {!!badge && badge > 0 && (
+        <span className="relative bg-(--color-accent) text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 tabular-nums">
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export function Sidebar({
   page,
   onNavigate,
@@ -38,59 +79,36 @@ export function Sidebar({
   return (
     <aside className="w-[240px] shrink-0 bg-(--color-ink) text-white flex flex-col h-screen sticky top-0">
       <div className="px-5 py-4 border-b border-white/10 flex items-center gap-2.5">
-        <span className="w-5 h-5 bg-(--color-accent) rounded-sm shrink-0" />
+        <span className="w-5 h-5 bg-(--color-accent) rounded-md shrink-0 shadow-[0_0_16px_color-mix(in_srgb,var(--color-accent-glow)_60%,transparent)]" />
         <span className="font-extrabold tracking-tight text-[15px]">ASHLAR</span>
       </div>
 
       <nav className="flex flex-col px-3 py-3 gap-0.5 flex-1">
-        {mainLinks.map((l) => {
-          const Icon = l.icon;
-          const active = page === l.id;
-          return (
-            <button
-              key={l.id}
-              onClick={() => onNavigate(l.id)}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] text-left transition-colors ${
-                active ? 'bg-white/10 text-white font-medium' : 'text-white/60 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              <span className="flex-1">{l.label}</span>
-              {l.id === 'approvals' && pendingCount > 0 && (
-                <span className="bg-(--color-accent) text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 tabular-nums">
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-          );
-        })}
+        {mainLinks.map((l) => (
+          <NavButton
+            key={l.id}
+            id={l.id}
+            label={l.label}
+            icon={l.icon}
+            active={page === l.id}
+            onNavigate={onNavigate}
+            badge={l.id === 'approvals' ? pendingCount : undefined}
+          />
+        ))}
 
         <p className="mt-5 mb-1.5 px-3 text-[10px] tracking-wide uppercase text-white/35">System</p>
-        {systemLinks.map((l) => {
-          const Icon = l.icon;
-          const active = page === l.id;
-          return (
-            <button
-              key={l.id}
-              onClick={() => onNavigate(l.id)}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] text-left transition-colors ${
-                active ? 'bg-white/10 text-white font-medium' : 'text-white/60 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              {l.label}
-            </button>
-          );
-        })}
+        {systemLinks.map((l) => (
+          <NavButton key={l.id} id={l.id} label={l.label} icon={l.icon} active={page === l.id} onNavigate={onNavigate} />
+        ))}
       </nav>
 
       <a
         href={LANDING_URL}
-        className="flex items-center gap-2 px-5 py-4 border-t border-white/10 text-[12px] text-white/60 hover:text-white transition-colors"
+        className="group flex items-center gap-2 px-5 py-4 border-t border-white/10 text-[12px] text-white/60 hover:text-white transition-colors"
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-(--color-accent-glow) shrink-0" />
+        <span className="w-1.5 h-1.5 rounded-full bg-(--color-accent-glow) shrink-0 animate-pulse" />
         Solana devnet · about Ashlar
-        <ArrowUpRight className="w-3 h-3 ml-auto" />
+        <ArrowUpRight className="w-3 h-3 ml-auto transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
       </a>
     </aside>
   );
