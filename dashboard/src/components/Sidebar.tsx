@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import {
+  Bot,
   LayoutGrid,
   GitBranch,
   ShieldCheck,
@@ -76,11 +77,54 @@ export function Sidebar({
   onNavigate: (p: Page) => void;
   pendingCount: number;
 }) {
+  const agentActive = page === 'agent';
+
   return (
     <aside className="w-[240px] shrink-0 bg-(--color-ink) text-white flex flex-col h-screen sticky top-0">
       <div className="px-5 py-4 border-b border-white/10 flex items-center gap-2.5">
         <span className="w-5 h-5 bg-(--color-accent) rounded-md shrink-0 shadow-[0_0_16px_color-mix(in_srgb,var(--color-accent-glow)_60%,transparent)]" />
         <span className="font-extrabold tracking-tight text-[15px]">ASHLAR</span>
+      </div>
+
+      {/* The flagship feature — visually distinct from the rest of the nav on purpose. This is
+          the actual live Claude agent loop, not a settings-page-style list item. */}
+      <div className="px-3 pt-4 pb-1">
+        <motion.button
+          onClick={() => onNavigate('agent')}
+          whileHover={{ scale: 1.015 }}
+          whileTap={{ scale: 0.985 }}
+          className={`relative w-full flex items-center gap-3 rounded-xl px-3.5 py-3 text-left overflow-hidden ${
+            agentActive
+              ? 'bg-(--color-accent) text-white'
+              : 'bg-gradient-to-br from-white/10 to-white/[0.03] text-white hover:from-white/[0.14]'
+          }`}
+        >
+          {!agentActive && (
+            <span
+              className="absolute -inset-8 opacity-40 pointer-events-none"
+              style={{
+                background: 'radial-gradient(circle, var(--color-accent-glow), transparent 65%)',
+              }}
+            />
+          )}
+          <span
+            className={`relative w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+              agentActive ? 'bg-white/20' : 'bg-(--color-accent)'
+            }`}
+          >
+            <Bot className="w-4 h-4" />
+          </span>
+          <span className="relative flex-1 min-w-0">
+            <span className="flex items-center gap-1.5">
+              <span className="font-semibold text-[13.5px]">Agent</span>
+              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide bg-white/20 rounded-full px-1.5 py-0.5">
+                <span className="w-1 h-1 rounded-full bg-(--color-accent-glow) animate-pulse" />
+                Live
+              </span>
+            </span>
+            <span className="block text-[11px] text-white/70">Talk to the real Claude loop</span>
+          </span>
+        </motion.button>
       </div>
 
       <nav className="flex flex-col px-3 py-3 gap-0.5 flex-1">
