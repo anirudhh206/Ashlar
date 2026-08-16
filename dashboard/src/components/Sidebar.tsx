@@ -81,8 +81,7 @@ export function Sidebar({
 
   return (
     <aside className="w-[240px] shrink-0 bg-(--color-ink) text-white flex flex-col h-screen sticky top-0">
-      <div className="px-5 py-4 border-b border-white/10 flex items-center gap-2.5">
-        <span className="w-5 h-5 bg-(--color-accent) rounded-md shrink-0 shadow-[0_0_16px_color-mix(in_srgb,var(--color-accent-glow)_60%,transparent)]" />
+      <div className="px-5 py-4 border-b border-white/10 flex items-center">
         <span className="font-extrabold tracking-tight text-[15px]">ASHLAR</span>
       </div>
 
