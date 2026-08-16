@@ -111,10 +111,10 @@ export function Overview({ onVerify }: OverviewProps) {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Active workflows" value={String(active)} icon={GitBranch} />
-        <StatCard label="Pending approvals" value={String(pending.length)} icon={ShieldCheck} accent={pending.length > 0} />
-        <StatCard label="Settled, last 30 days" value={`$${settledSum.toFixed(2)}`} icon={ReceiptIcon} />
-        <StatCard label="Receipts minted" value={String(receipts?.length ?? 0)} icon={FileBadge} />
+        <StatCard label="Active workflows" value={active} icon={GitBranch} />
+        <StatCard label="Pending approvals" value={pending.length} icon={ShieldCheck} accent={pending.length > 0} />
+        <StatCard label="Settled, last 30 days" value={settledSum} prefix="$" icon={ReceiptIcon} />
+        <StatCard label="Receipts minted" value={receipts?.length ?? 0} icon={FileBadge} />
       </div>
 
       <div className="grid lg:grid-cols-[1.5fr_1fr] gap-4 items-start">
