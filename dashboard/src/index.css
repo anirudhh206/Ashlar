@@ -17,6 +17,28 @@
   --color-accent-hover: #8c6a30;
   --color-accent-soft: #f4ecd8;
   --color-accent-glow: #d9b876;
+
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 25%,
+    color-mix(in srgb, var(--color-hairline) 60%, white) 50%,
+    var(--color-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
 }
 
 html {
@@ -43,4 +65,10 @@ body {
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Faint dot grid behind the main content area — depth cue, not decoration that competes with data. */
+.dot-grid {
+  background-image: radial-gradient(color-mix(in srgb, var(--color-ink) 6%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
 }
