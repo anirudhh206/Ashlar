@@ -109,3 +109,65 @@ export const howItWorks = [
 ] as const;
 
 export const verifyCommand = `pnpm verify ${workflows.oneTimeApproval.pda}`;
+
+// The system underneath the settlement most visitors see — six real, independently-shippable
+// subsystems, not one script. Each maps to an actual package/program in the repo.
+export const stackPillars = [
+  {
+    icon: 'file-code-2',
+    name: 'Compiler',
+    tagline: 'English → compiled workflow',
+    body: 'A deterministic rule-based compiler turns a plain-English instruction into a fixed CompiledWorkflow — two structurally different templates, one engine, zero LLM involved in this step.',
+    tags: ['@ashlar/compiler', 'TypeScript'],
+  },
+  {
+    icon: 'link-2',
+    name: 'On-chain policy engine',
+    tagline: 'Anchor program on Solana',
+    body: 'Six instructions enforce the compiled step sequence in order — fetch, compliance/approval, guardrail, settlement, resume-after-override — each writing its own signed Attestation and Ledger entry.',
+    tags: ['Anchor', 'Rust', 'Solana devnet'],
+  },
+  {
+    icon: 'bot',
+    name: 'AI reasoning layer',
+    tagline: 'Claude, boxed to 5 typed tools',
+    body: 'A real Claude tool-use loop drives the workflow forward. Its entire action space is 5 narrow, schema-constrained tools — it can request a step, never construct a transaction.',
+    tags: ['Claude API', 'Anthropic SDK'],
+  },
+  {
+    icon: 'shield-half',
+    name: 'Treasury custody',
+    tagline: 'Real 2-of-2 Squads multisig',
+    body: 'Overrides on a paused, over-cap request execute through an actual Squads propose → approve → execute flow — not a program-owned vault.',
+    tags: ['Squads v4', '@sqds/multisig'],
+  },
+  {
+    icon: 'shuffle',
+    name: 'Settlement rails',
+    tagline: 'Real external protocols, wired in',
+    body: 'Live Pyth pricing, a signed AP2 payment mandate, an x402 payment settled through PayAI’s public facilitator, and a compressed-NFT receipt minted to Arweave via Irys.',
+    tags: ['x402', 'AP2', 'Pyth', 'Bubblegum', 'Irys'],
+  },
+  {
+    icon: 'search-check',
+    name: 'Independent verification',
+    tagline: 'Zero shared code with the app',
+    body: 'A standalone CLI and a live SSE dashboard re-fetch raw chain history and re-derive every proof from the public IDL alone — never trusting Ashlar’s own client code.',
+    tags: ['Verifier CLI', 'Live dashboard'],
+  },
+] as const;
+
+export const techStack = [
+  'Solana',
+  'Anchor',
+  'Claude',
+  'Squads',
+  'x402',
+  'AP2',
+  'Pyth',
+  'Metaplex Bubblegum',
+  'Irys / Arweave',
+  'Helius',
+  'React',
+  'Vite',
+] as const;

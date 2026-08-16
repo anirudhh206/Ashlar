@@ -1,4 +1,5 @@
 const links = [
+  { href: '#stack', label: 'System' },
   { href: '#how', label: 'How it works' },
   { href: '#proof', label: 'Proof' },
   { href: '#case', label: 'Settlement' },

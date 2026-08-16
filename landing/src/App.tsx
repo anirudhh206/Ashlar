@@ -3,6 +3,8 @@ import Lenis from 'lenis';
 import { motion, useScroll } from 'motion/react';
 import { Nav } from './sections/Nav';
 import { Hero } from './sections/Hero';
+import { TechMarquee } from './sections/TechMarquee';
+import { Stack } from './sections/Stack';
 import { Problem } from './sections/Problem';
 import { ArchitectureStack } from './sections/ArchitectureStack';
 import { HowItWorks } from './sections/HowItWorks';
@@ -47,6 +49,8 @@ export default function App() {
       >
         <Nav />
         <Hero />
+        <TechMarquee />
+        <Stack />
         <hr className="h-0.5 border-0 bg-(--color-hairline)" />
         <Problem />
         <hr className="h-0.5 border-0 bg-(--color-hairline)" />
