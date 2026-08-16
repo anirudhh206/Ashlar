@@ -6,6 +6,7 @@ import { EmptyState } from '../components/EmptyState.js';
 import { SkeletonRows } from '../components/Skeleton.js';
 import { CopyButton } from '../components/CopyButton.js';
 import { useToast } from '../components/Toast.js';
+import { useLiveEvents } from '../hooks/useLiveEvents.js';
 
 interface RowState {
   status: 'idle' | 'submitting' | 'error';
@@ -20,8 +21,8 @@ export function Approvals() {
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
   const toast = useToast();
 
-  function load() {
-    setStatus('loading');
+  function load(silent = false) {
+    if (!silent) setStatus('loading');
     fetch(`${RELAY_URL}/workflows?limit=300`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`relay returned ${res.status}`);
@@ -38,6 +39,9 @@ export function Approvals() {
   }
 
   useEffect(load, []);
+  // Real-time: a new guardrail breach anywhere shows up here live, and a resolution made from
+  // another tab (or the Overview page) removes it here too, without a manual reload.
+  useLiveEvents(() => load(true));
 
   async function handleResume(w: WorkflowSummary, approved: boolean) {
     setRowState((prev) => ({ ...prev, [w.pda]: { status: 'submitting', error: null, signature: null } }));
