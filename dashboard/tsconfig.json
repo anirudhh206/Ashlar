@@ -7,5 +7,5 @@
     "jsx": "react-jsx",
     "types": ["vite/client"]
   },
-  "include": ["src", "server", "../scripts/lib", "../target/types"]
+  "include": ["src", "server", "../scripts/lib", "../verifier/src", "../target/types"]
 }
