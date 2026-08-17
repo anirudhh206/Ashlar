@@ -98,6 +98,7 @@ export interface MockInvoice {
   amount: number;
   vendor: string;
   status: 'approved' | 'pending';
+  settled?: boolean;
 }
 
 // Mirrors agent/src/driveWorkflow.ts's real AgentEvent union exactly — every real thing the live
