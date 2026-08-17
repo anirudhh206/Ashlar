@@ -31,10 +31,16 @@ import { executeSplitSettlement } from './splitSettlement.js';
 import { mintReceipt, buildReceiptNotification } from './receiptClient.js';
 import { notifyOwner } from './notify.js';
 
+export interface ExplicitRecipient {
+  pubkey: PublicKey;
+  amountUsd: number;
+}
+
 export interface CompileAndInitializeResult {
   compiledWorkflowType: string;
   ctx: PolicyEngineContext;
   vendor: PublicKey;
+  recipients: ExplicitRecipient[];
   workflowId: anchor.BN;
   spendCapUsd: bigint;
   workflowPda: string;
@@ -45,6 +51,7 @@ export interface CompileAndInitializeResult {
 export async function compileAndInitializeWorkflow(
   instruction: string,
   log: (message: string) => void = () => {},
+  explicitRecipients: ExplicitRecipient[] = [],
 ): Promise<CompileAndInitializeResult> {
   const compiled = compileInstruction(instruction);
   log(`Instruction: "${instruction}"`);
@@ -53,15 +60,27 @@ export async function compileAndInitializeWorkflow(
   const ctx = await loadPolicyEngineContext();
   const vendor = resolveVendorPubkey();
 
-  let spendCapUsd: bigint;
   let workflowTypeArg: WorkflowTypeArg;
   if (compiled.workflowType === 'recurring-conditional-payment') {
-    spendCapUsd = BigInt(compiled.parameters.spendCap.perPayment);
     workflowTypeArg = { recurringConditionalPayment: {} };
   } else {
-    spendCapUsd = BigInt(compiled.parameters.amount);
     workflowTypeArg = { oneTimeApprovalGatedTransfer: {} };
   }
+
+  // Explicit recipients (real wallet addresses + amounts, entered by the operator rather than
+  // parsed out of the instruction sentence) take over both the spend cap and the allowlist —
+  // the sentence still has to satisfy the compiler's grammar to pick a template, but the money
+  // actually moves against these real addresses, not whatever name the sentence happened to
+  // contain. Falls back to the legacy single-vendor-stand-in path when none are given, so
+  // existing CLI scripts and the deterministic /deploy flow are unaffected.
+  const allowlist = explicitRecipients.length > 0 ? explicitRecipients.map((r) => r.pubkey) : [vendor];
+  const spendCapUsd =
+    explicitRecipients.length > 0
+      ? BigInt(Math.round(explicitRecipients.reduce((sum, r) => sum + r.amountUsd, 0)))
+      : compiled.workflowType === 'recurring-conditional-payment'
+        ? BigInt(compiled.parameters.spendCap.perPayment)
+        : BigInt(compiled.parameters.amount);
+
   const spendCap = new anchor.BN(spendCapUsd.toString());
   const workflowId = new anchor.BN(Date.now());
 
@@ -69,17 +88,22 @@ export async function compileAndInitializeWorkflow(
     workflowId,
     workflowType: workflowTypeArg,
     spendCap,
-    allowlist: [vendor],
+    allowlist,
   });
   const workflowPda = pdas.workflow.toBase58();
   log(`Workflow PDA: ${workflowPda}`);
-  log(`Vendor (allowlist/recipient stand-in): ${vendor.toBase58()}`);
+  log(
+    explicitRecipients.length > 0
+      ? `Recipients (allowlist): ${allowlist.map((a) => a.toBase58()).join(', ')}`
+      : `Vendor (allowlist/recipient stand-in): ${vendor.toBase58()}`,
+  );
   log(`[1/5] initialize_workflow: ${initSig}\n      ${explorerLink(initSig)}`);
 
   return {
     compiledWorkflowType: compiled.workflowType,
     ctx,
     vendor,
+    recipients: explicitRecipients,
     workflowId,
     spendCapUsd,
     workflowPda,
