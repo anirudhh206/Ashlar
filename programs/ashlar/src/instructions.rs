@@ -9,6 +9,7 @@ pub mod manual_approval;
 pub mod guardrail_check;
 pub mod mock_settlement;
 pub mod resume_after_override;
+pub mod settle_direct_transfer;
 
 pub use initialize::*;
 pub use increment::*;
@@ -20,3 +21,4 @@ pub use manual_approval::*;
 pub use guardrail_check::*;
 pub use mock_settlement::*;
 pub use resume_after_override::*;
+pub use settle_direct_transfer::*;

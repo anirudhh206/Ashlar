@@ -75,4 +75,23 @@ pub mod ashlar {
     ) -> Result<()> {
         crate::instructions::resume_after_override::handle_resume_after_override(ctx, workflow_id, approved)
     }
+
+    /// Real fund movement, on-chain: pays 1–4 recipients directly via an SPL `transfer_checked`
+    /// CPI per leg, atomically with the settlement attestation. See
+    /// instructions/settle_direct_transfer.rs's doc comment for the full design rationale.
+    pub fn settle_direct_transfer<'info>(
+        ctx: Context<'info, SettleDirectTransfer<'info>>,
+        workflow_id: u64,
+        amounts: Vec<u64>,
+        decimals: u8,
+        settlement_reference: String,
+    ) -> Result<()> {
+        crate::instructions::settle_direct_transfer::handle_settle_direct_transfer(
+            ctx,
+            workflow_id,
+            amounts,
+            decimals,
+            settlement_reference,
+        )
+    }
 }
