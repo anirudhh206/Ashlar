@@ -15,6 +15,7 @@ const MOCK_INVOICES: MockInvoice[] = [
   { id: 1, amount: 5, vendor: 'Acme Corp', status: 'approved' },
   { id: 2, amount: 3, vendor: 'Acme Corp', status: 'approved' },
   { id: 3, amount: 10, vendor: 'Widget Co', status: 'pending' },
+  { id: 4, amount: 7, vendor: 'Nova Supplies', status: 'approved' },
 ];
 
 export function getMockInvoice(id: number): MockInvoice | undefined {
