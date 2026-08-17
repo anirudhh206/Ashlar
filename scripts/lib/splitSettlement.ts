@@ -63,10 +63,18 @@ export interface SplitSettlementEvidence {
   usdcUsdPrice: number;
   splits: { vendorUsdcAtomic: string; taxReserveUsdcAtomic: string; yieldPoolUsdcAtomic: string };
   vendorPayment: { invoiceUrl: string; status: number };
+  /** Empty string means this leg hasn't gone out yet — only possible when `status: 'partial'`. */
   taxReserveTransferSignature: string;
   yieldPoolTransferSignature: string;
   ap2Mandate: { signature: string; verified: boolean };
   agentIdentity: AgentIdentityStatus;
+  /** Present only when the tax-reserve or yield-pool leg failed after the vendor was already
+   * paid — the vendor payment (and any leg that did land) is real and irreversible, so this
+   * record exists to make that visible rather than losing it. There's no automatic retry here
+   * (unlike directTransfer.ts's resumable path): the x402 vendor payment itself can't be safely
+   * re-sent without risking a duplicate payment, so a partial result needs a human to look at
+   * treasury/settlements/<workflowId>.json and finish the remaining SPL leg(s) manually. */
+  status?: 'partial';
 }
 
 /** Compact enough to safely fit in a Solana transaction's instruction data (~1232-byte tx
@@ -128,40 +136,72 @@ export async function executeSplitSettlement(
   const vendorPayment = await payVendorInvoice(invoiceUrl, businessOwner, vendorAmount);
 
   const usdcMint = new PublicKey(USDC_DEVNET_MINT);
-  const ownerAta = await getOrCreateAssociatedTokenAccount(connection, businessOwner, usdcMint, businessOwner.publicKey);
-  const taxReserveAta = await getOrCreateAssociatedTokenAccount(
-    connection,
-    businessOwner,
-    usdcMint,
-    taxReserveWallet.publicKey,
-  );
-  const yieldPoolAta = await getOrCreateAssociatedTokenAccount(
-    connection,
-    businessOwner,
-    usdcMint,
-    yieldPoolWallet.publicKey,
-  );
+  const splits = {
+    vendorUsdcAtomic: vendorAmount.toString(),
+    taxReserveUsdcAtomic: taxReserveAmount.toString(),
+    yieldPoolUsdcAtomic: yieldPoolAmount.toString(),
+  };
 
-  const taxReserveTransferSignature = await transferChecked(
-    connection,
-    businessOwner,
-    ownerAta.address,
-    usdcMint,
-    taxReserveAta.address,
-    businessOwner,
-    taxReserveAmount,
-    USDC_DECIMALS,
-  );
-  const yieldPoolTransferSignature = await transferChecked(
-    connection,
-    businessOwner,
-    ownerAta.address,
-    usdcMint,
-    yieldPoolAta.address,
-    businessOwner,
-    yieldPoolAmount,
-    USDC_DECIMALS,
-  );
+  // The vendor leg is already real and irreversible by this point — from here on, any failure
+  // must still record it (plus whichever of the two remaining legs landed) instead of losing
+  // that money movement from the audit trail entirely.
+  let taxReserveTransferSignature = '';
+  let yieldPoolTransferSignature = '';
+  try {
+    const ownerAta = await getOrCreateAssociatedTokenAccount(connection, businessOwner, usdcMint, businessOwner.publicKey);
+    const taxReserveAta = await getOrCreateAssociatedTokenAccount(
+      connection,
+      businessOwner,
+      usdcMint,
+      taxReserveWallet.publicKey,
+    );
+    const yieldPoolAta = await getOrCreateAssociatedTokenAccount(
+      connection,
+      businessOwner,
+      usdcMint,
+      yieldPoolWallet.publicKey,
+    );
+
+    taxReserveTransferSignature = await transferChecked(
+      connection,
+      businessOwner,
+      ownerAta.address,
+      usdcMint,
+      taxReserveAta.address,
+      businessOwner,
+      taxReserveAmount,
+      USDC_DECIMALS,
+    );
+    yieldPoolTransferSignature = await transferChecked(
+      connection,
+      businessOwner,
+      ownerAta.address,
+      usdcMint,
+      yieldPoolAta.address,
+      businessOwner,
+      yieldPoolAmount,
+      USDC_DECIMALS,
+    );
+  } catch (err) {
+    writeSettlementEvidence({
+      workflowId,
+      totalAmountUsd,
+      usdcUsdPrice,
+      splits,
+      vendorPayment: { invoiceUrl, status: vendorPayment.status },
+      taxReserveTransferSignature,
+      yieldPoolTransferSignature,
+      ap2Mandate: { signature: mandate.signature, verified: mandateVerified },
+      agentIdentity: { registered: false },
+      status: 'partial',
+    });
+    throw new Error(
+      `executeSplitSettlement: vendor already paid ($${(Number(vendorAmount) / 1_000_000).toFixed(2)} ` +
+        `USDC), but a later leg failed (${(err as Error).message}). Partial evidence recorded in ` +
+        `treasury/settlements/${workflowId}.json — the remaining tax-reserve/yield-pool transfer(s) need ` +
+        `to be completed manually.`,
+    );
+  }
 
   const agentIdentityAsset = loadAgentIdentityAssetAddress();
   let agentIdentity: AgentIdentityStatus = { registered: false };
@@ -170,12 +210,6 @@ export async function executeSplitSettlement(
     const umi = createAgentIdentityUmi(agentIdentityKeypair);
     agentIdentity = await verifyAgentIdentity(umi, agentIdentityAsset);
   }
-
-  const splits = {
-    vendorUsdcAtomic: vendorAmount.toString(),
-    taxReserveUsdcAtomic: taxReserveAmount.toString(),
-    yieldPoolUsdcAtomic: yieldPoolAmount.toString(),
-  };
 
   const evidence: SplitSettlementEvidence = {
     workflowId,
