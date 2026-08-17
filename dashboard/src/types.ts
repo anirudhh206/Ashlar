@@ -45,7 +45,11 @@ export interface AttestationEvent {
   timestamp: number;
 }
 
-export interface SettlementEvidence {
+// The legacy vendor-split path (scripts/lib/splitSettlement.ts) — a single vendor paid via real
+// x402 rails, plus a tax-reserve/yield-pool skim. Old evidence files on disk predate the `kind`
+// discriminator entirely, so it's optional here and treated as this shape when absent.
+export interface VendorSplitSettlementEvidence {
+  kind?: 'vendor-split-settlement';
   workflowId: string;
   totalAmountUsd: number;
   usdcUsdPrice: number;
@@ -60,6 +64,18 @@ export interface SettlementEvidence {
   ap2Mandate: { signature: string; verified: boolean };
   agentIdentity: { registered: boolean; assetAddress: string };
 }
+
+// A direct multi-recipient transfer (scripts/lib/directTransfer.ts) — real wallet addresses
+// named explicitly by the operator, paid in full with no automatic skim.
+export interface DirectTransferEvidence {
+  kind: 'direct-transfer';
+  workflowId: string;
+  totalAmountUsd: number;
+  usdcUsdPrice: number;
+  legs: { recipient: string; amountUsd: number; usdcAtomic: string; signature: string }[];
+}
+
+export type SettlementEvidence = VendorSplitSettlementEvidence | DirectTransferEvidence;
 
 export interface Receipt {
   assetId: string;
