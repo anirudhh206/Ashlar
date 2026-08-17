@@ -98,7 +98,7 @@ function ToolCallLine({ item, resultItem }: { item: TranscriptItem; resultItem?:
   );
 }
 
-const emptyNewInvoice = { amount: '', vendor: '', status: 'approved' as 'approved' | 'pending' };
+const emptyNewInvoice = { amount: '', recipientAddress: '' };
 
 export function Agent({ onVerify }: AgentProps) {
   const [instruction, setInstruction] = useState('Transfer $5 to Acme Corp, pending my approval.');
@@ -164,13 +164,13 @@ export function Agent({ onVerify }: AgentProps) {
 
   async function handleCreateInvoice() {
     const amount = Number(newInvoice.amount);
-    if (!(amount > 0) || !newInvoice.vendor.trim()) return;
+    if (!(amount > 0) || !isValidSolanaAddress(newInvoice.recipientAddress)) return;
     setCreatingInvoice(true);
     try {
       const res = await fetch(`${RELAY_URL}/invoices`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ amount, vendor: newInvoice.vendor.trim(), status: newInvoice.status }),
+        body: JSON.stringify({ amount, recipientAddress: newInvoice.recipientAddress.trim() }),
       });
       if (!res.ok) throw new Error(`relay returned ${res.status}: ${await res.text()}`);
       const { invoice } = (await res.json()) as { invoice: MockInvoice };
@@ -204,6 +204,16 @@ export function Agent({ onVerify }: AgentProps) {
     setOutcome(null);
     setWorkflowPda(null);
 
+    // A manually-entered recipient row always wins if present. Otherwise, if the selected
+    // invoice itself carries a real wallet address (set at invoice-creation time), use that
+    // automatically — no need to re-type it into the Recipients section on every trigger.
+    const selectedInvoice = invoices?.find((inv) => inv.id === invoiceId);
+    const effectiveRecipients = hasRecipients
+      ? filledRecipients.map((r) => ({ address: r.address.trim(), amountUsd: Number(r.amountUsd) }))
+      : selectedInvoice?.recipientAddress
+        ? [{ address: selectedInvoice.recipientAddress, amountUsd: selectedInvoice.amount }]
+        : undefined;
+
     try {
       const res = await fetch(`${RELAY_URL}/agent/trigger`, {
         method: 'POST',
@@ -211,9 +221,7 @@ export function Agent({ onVerify }: AgentProps) {
         body: JSON.stringify({
           instruction: instruction.trim(),
           invoiceId,
-          recipients: hasRecipients
-            ? filledRecipients.map((r) => ({ address: r.address.trim(), amountUsd: Number(r.amountUsd) }))
-            : undefined,
+          recipients: effectiveRecipients,
         }),
       });
       if (!res.ok) throw new Error(`relay returned ${res.status}: ${await res.text()}`);
@@ -315,31 +323,24 @@ export function Agent({ onVerify }: AgentProps) {
                     className="w-full rounded-md border border-(--color-hairline) bg-white px-2.5 py-1.5 text-[12.5px] font-mono outline-none focus:border-(--color-accent)"
                   />
                 </div>
-                <div className="flex-[2] min-w-[140px]">
-                  <label className="block text-[10.5px] text-(--color-mist) mb-1">Vendor</label>
+                <div className="flex-[3] min-w-[200px]">
+                  <label className="block text-[10.5px] text-(--color-mist) mb-1">Wallet address</label>
                   <input
                     type="text"
-                    value={newInvoice.vendor}
-                    onChange={(e) => setNewInvoice((prev) => ({ ...prev, vendor: e.target.value }))}
-                    placeholder="e.g. Nova Supplies"
-                    className="w-full rounded-md border border-(--color-hairline) bg-white px-2.5 py-1.5 text-[12.5px] outline-none focus:border-(--color-accent)"
+                    value={newInvoice.recipientAddress}
+                    onChange={(e) => setNewInvoice((prev) => ({ ...prev, recipientAddress: e.target.value }))}
+                    placeholder="Solana wallet address"
+                    className={`w-full rounded-md border bg-white px-2.5 py-1.5 text-[12.5px] font-mono outline-none ${
+                      newInvoice.recipientAddress && !isValidSolanaAddress(newInvoice.recipientAddress)
+                        ? 'border-red-400'
+                        : 'border-(--color-hairline) focus:border-(--color-accent)'
+                    }`}
                   />
-                </div>
-                <div className="flex-1 min-w-[110px]">
-                  <label className="block text-[10.5px] text-(--color-mist) mb-1">Status</label>
-                  <select
-                    value={newInvoice.status}
-                    onChange={(e) => setNewInvoice((prev) => ({ ...prev, status: e.target.value as 'approved' | 'pending' }))}
-                    className="w-full rounded-md border border-(--color-hairline) bg-white px-2.5 py-1.5 text-[12.5px] outline-none focus:border-(--color-accent)"
-                  >
-                    <option value="approved">approved</option>
-                    <option value="pending">pending</option>
-                  </select>
                 </div>
                 <button
                   type="button"
                   onClick={handleCreateInvoice}
-                  disabled={creatingInvoice || !(Number(newInvoice.amount) > 0) || !newInvoice.vendor.trim()}
+                  disabled={creatingInvoice || !(Number(newInvoice.amount) > 0) || !isValidSolanaAddress(newInvoice.recipientAddress)}
                   className="rounded-md bg-(--color-accent) text-white text-[12.5px] font-medium px-3.5 py-1.5 hover:bg-(--color-accent-hover) disabled:opacity-50"
                 >
                   {creatingInvoice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Create'}
@@ -365,9 +366,14 @@ export function Agent({ onVerify }: AgentProps) {
                       #{inv.id} · ${inv.amount} · {inv.vendor}
                     </p>
                     <p
-                      className={`text-[11px] m-0 ${inv.status === 'approved' ? 'text-(--color-accent-hover)' : 'text-(--color-mist)'}`}
+                      className={`text-[11px] m-0 flex items-center gap-1 ${inv.status === 'approved' ? 'text-(--color-accent-hover)' : 'text-(--color-mist)'}`}
                     >
                       {inv.status}
+                      {inv.recipientAddress && (
+                        <span className="inline-flex items-center gap-0.5 text-(--color-mist)">
+                          <Users className="w-3 h-3" /> real wallet
+                        </span>
+                      )}
                     </p>
                   </button>
                 ))}
