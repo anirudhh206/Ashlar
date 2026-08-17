@@ -17,6 +17,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useToast } from '../components/Toast.js';
+import { useLiveEvents } from '../hooks/useLiveEvents.js';
 import {
   RELAY_URL,
   explorerAddress,
@@ -97,10 +98,15 @@ function ToolCallLine({ item, resultItem }: { item: TranscriptItem; resultItem?:
   );
 }
 
+const emptyNewInvoice = { amount: '', vendor: '', status: 'approved' as 'approved' | 'pending' };
+
 export function Agent({ onVerify }: AgentProps) {
   const [instruction, setInstruction] = useState('Transfer $5 to Acme Corp, pending my approval.');
   const [invoices, setInvoices] = useState<MockInvoice[] | null>(null);
   const [invoiceId, setInvoiceId] = useState<number>(1);
+  const [showNewInvoice, setShowNewInvoice] = useState(false);
+  const [newInvoice, setNewInvoice] = useState(emptyNewInvoice);
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [recipients, setRecipients] = useState<RecipientRow[]>([]);
   const recipientIdCounter = useRef(0);
   const [status, setStatus] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
@@ -138,15 +144,48 @@ export function Agent({ onVerify }: AgentProps) {
     ? recipientErrors.length === 0 && filledRecipients.every((r) => Number(r.amountUsd) > 0)
     : true;
 
-  useEffect(() => {
+  function loadInvoices() {
     fetch(`${RELAY_URL}/invoices`)
       .then((res) => res.json() as Promise<{ invoices: MockInvoice[] }>)
       .then((d) => {
         setInvoices(d.invoices);
-        if (d.invoices[0]) setInvoiceId(d.invoices[0].id);
+        // If the currently-selected invoice just settled (or none is selected yet), jump to
+        // the first still-open one so the picker never leaves you pointed at a dead end.
+        const open = d.invoices.filter((inv) => !inv.settled);
+        setInvoiceId((prev) => (open.some((inv) => inv.id === prev) ? prev : (open[0]?.id ?? prev)));
       })
       .catch(() => setInvoices([]));
-  }, []);
+  }
+
+  useEffect(loadInvoices, []);
+  // Real-time: once a triggered workflow actually completes, its invoice is marked settled
+  // server-side and disappears from the picker here live, no manual refresh needed.
+  useLiveEvents(loadInvoices);
+
+  async function handleCreateInvoice(e: FormEvent) {
+    e.preventDefault();
+    const amount = Number(newInvoice.amount);
+    if (!(amount > 0) || !newInvoice.vendor.trim()) return;
+    setCreatingInvoice(true);
+    try {
+      const res = await fetch(`${RELAY_URL}/invoices`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ amount, vendor: newInvoice.vendor.trim(), status: newInvoice.status }),
+      });
+      if (!res.ok) throw new Error(`relay returned ${res.status}: ${await res.text()}`);
+      const { invoice } = (await res.json()) as { invoice: MockInvoice };
+      loadInvoices();
+      setInvoiceId(invoice.id);
+      setNewInvoice(emptyNewInvoice);
+      setShowNewInvoice(false);
+      toast.push('success', `Invoice #${invoice.id} created.`);
+    } catch (err) {
+      toast.push('error', `Could not create invoice — ${(err as Error).message}`);
+    } finally {
+      setCreatingInvoice(false);
+    }
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -246,31 +285,95 @@ export function Agent({ onVerify }: AgentProps) {
           />
 
           <div>
-            <p className="text-[11px] tracking-wide uppercase text-(--color-mist) mb-2">
-              Trigger invoice — real data from <code className="font-mono text-[10.5px]">agent/src/mockInvoices.ts</code>
-            </p>
-            <div className="grid sm:grid-cols-3 gap-2">
-              {(invoices ?? []).map((inv) => (
-                <button
-                  type="button"
-                  key={inv.id}
-                  onClick={() => setInvoiceId(inv.id)}
-                  className={`text-left rounded-lg border px-3 py-2.5 transition-colors ${
-                    invoiceId === inv.id
-                      ? 'border-(--color-accent) bg-(--color-accent-soft)'
-                      : 'border-(--color-hairline) hover:border-(--color-ink)'
-                  }`}
-                >
-                  <p className="text-[12.5px] font-semibold m-0">
-                    #{inv.id} · ${inv.amount} · {inv.vendor}
-                  </p>
-                  <p
-                    className={`text-[11px] m-0 ${inv.status === 'approved' ? 'text-(--color-accent-hover)' : 'text-(--color-mist)'}`}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] tracking-wide uppercase text-(--color-mist) m-0">
+                Trigger invoice — persisted to <code className="font-mono text-[10.5px]">treasury/mock-invoices.json</code>
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowNewInvoice((v) => !v)}
+                className="inline-flex items-center gap-1 text-[11.5px] font-medium text-(--color-accent) hover:text-(--color-accent-hover)"
+              >
+                <Plus className="w-3.5 h-3.5" /> New invoice
+              </button>
+            </div>
+
+            {showNewInvoice && (
+              <form
+                onSubmit={handleCreateInvoice}
+                className="flex flex-wrap items-end gap-2 mb-3 p-3 rounded-lg bg-(--color-surface) border border-(--color-hairline)"
+              >
+                <div className="flex-1 min-w-[90px]">
+                  <label className="block text-[10.5px] text-(--color-mist) mb-1">Amount (USD)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newInvoice.amount}
+                    onChange={(e) => setNewInvoice((prev) => ({ ...prev, amount: e.target.value }))}
+                    className="w-full rounded-md border border-(--color-hairline) bg-white px-2.5 py-1.5 text-[12.5px] font-mono outline-none focus:border-(--color-accent)"
+                  />
+                </div>
+                <div className="flex-[2] min-w-[140px]">
+                  <label className="block text-[10.5px] text-(--color-mist) mb-1">Vendor</label>
+                  <input
+                    type="text"
+                    value={newInvoice.vendor}
+                    onChange={(e) => setNewInvoice((prev) => ({ ...prev, vendor: e.target.value }))}
+                    placeholder="e.g. Nova Supplies"
+                    className="w-full rounded-md border border-(--color-hairline) bg-white px-2.5 py-1.5 text-[12.5px] outline-none focus:border-(--color-accent)"
+                  />
+                </div>
+                <div className="flex-1 min-w-[110px]">
+                  <label className="block text-[10.5px] text-(--color-mist) mb-1">Status</label>
+                  <select
+                    value={newInvoice.status}
+                    onChange={(e) => setNewInvoice((prev) => ({ ...prev, status: e.target.value as 'approved' | 'pending' }))}
+                    className="w-full rounded-md border border-(--color-hairline) bg-white px-2.5 py-1.5 text-[12.5px] outline-none focus:border-(--color-accent)"
                   >
-                    {inv.status}
-                  </p>
+                    <option value="approved">approved</option>
+                    <option value="pending">pending</option>
+                  </select>
+                </div>
+                <button
+                  type="submit"
+                  disabled={creatingInvoice || !(Number(newInvoice.amount) > 0) || !newInvoice.vendor.trim()}
+                  className="rounded-md bg-(--color-accent) text-white text-[12.5px] font-medium px-3.5 py-1.5 hover:bg-(--color-accent-hover) disabled:opacity-50"
+                >
+                  {creatingInvoice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Create'}
                 </button>
-              ))}
+              </form>
+            )}
+
+            <div className="grid sm:grid-cols-3 gap-2">
+              {(invoices ?? [])
+                .filter((inv) => !inv.settled)
+                .map((inv) => (
+                  <button
+                    type="button"
+                    key={inv.id}
+                    onClick={() => setInvoiceId(inv.id)}
+                    className={`text-left rounded-lg border px-3 py-2.5 transition-colors ${
+                      invoiceId === inv.id
+                        ? 'border-(--color-accent) bg-(--color-accent-soft)'
+                        : 'border-(--color-hairline) hover:border-(--color-ink)'
+                    }`}
+                  >
+                    <p className="text-[12.5px] font-semibold m-0">
+                      #{inv.id} · ${inv.amount} · {inv.vendor}
+                    </p>
+                    <p
+                      className={`text-[11px] m-0 ${inv.status === 'approved' ? 'text-(--color-accent-hover)' : 'text-(--color-mist)'}`}
+                    >
+                      {inv.status}
+                    </p>
+                  </button>
+                ))}
+              {invoices && invoices.filter((inv) => !inv.settled).length === 0 && (
+                <p className="text-[12.5px] text-(--color-mist) col-span-full m-0">
+                  Every invoice has settled — create a new one above to trigger the agent again.
+                </p>
+              )}
             </div>
           </div>
 
