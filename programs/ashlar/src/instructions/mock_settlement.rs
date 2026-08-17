@@ -74,7 +74,7 @@ pub fn handle_mock_settlement(
     workflow.current_step += 1;
     workflow.status = WorkflowStatus::Completed;
     msg!(
-        "Settlement attested: {} lamports to {} (Squads tx {})",
+        "Settlement attested: {} to {} (reference {})",
         amount,
         workflow.pending_recipient,
         settlement_reference
