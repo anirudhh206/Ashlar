@@ -96,33 +96,31 @@ function DirectTransferCard({ s, i }: { s: DirectTransferEvidence; i: number }) 
           />
         ))}
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 mb-3">
         {s.legs.map((leg, j) => (
-          <div key={leg.recipient} className="flex items-center justify-between gap-2 text-[12px] flex-wrap">
-            <span className="inline-flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full shrink-0 ${segColors[j % segColors.length]}`} />
-              <span className="font-mono">${usdc(leg.usdcAtomic)}</span>
-              <span className="text-(--color-mist)">to</span>
-              <a
-                href={explorerAddress(leg.recipient)}
-                target="_blank"
-                rel="noreferrer"
-                className="font-mono text-(--color-accent) hover:text-(--color-accent-hover)"
-              >
-                {short(leg.recipient)}
-              </a>
-            </span>
+          <div key={leg.recipient} className="flex items-center gap-1.5 text-[12px] flex-wrap">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${segColors[j % segColors.length]}`} />
+            <span className="font-mono">${usdc(leg.usdcAtomic)}</span>
+            <span className="text-(--color-mist)">to</span>
             <a
-              href={explorerTx(leg.signature)}
+              href={explorerAddress(leg.recipient)}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-(--color-accent) hover:text-(--color-accent-hover)"
+              className="font-mono text-(--color-accent) hover:text-(--color-accent-hover)"
             >
-              tx <ExternalLink className="w-3 h-3" />
+              {short(leg.recipient)}
             </a>
           </div>
         ))}
       </div>
+      <a
+        href={explorerTx(s.signature)}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1.5 pt-3 border-t border-(--color-hairline) font-medium text-(--color-accent) hover:text-(--color-accent-hover) text-[12.5px]"
+      >
+        Settlement tx (every recipient, one atomic transaction) <ExternalLink className="w-3.5 h-3.5" />
+      </a>
     </>
   );
 }
@@ -197,7 +195,7 @@ export function Settlements() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {s.status === 'partial' && (
+                {s.kind !== 'direct-transfer' && s.status === 'partial' && (
                   <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold rounded-full px-2 py-0.5 bg-red-50 text-red-700">
                     <CircleAlert className="w-3 h-3" /> incomplete — needs retry
                   </span>

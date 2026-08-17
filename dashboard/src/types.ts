@@ -70,16 +70,18 @@ export interface VendorSplitSettlementEvidence {
 }
 
 // A direct multi-recipient transfer (scripts/lib/directTransfer.ts) — real wallet addresses
-// named explicitly by the operator, paid in full with no automatic skim.
+// named explicitly by the operator, paid in full with no automatic skim. Every recipient's
+// transfer_checked CPI runs inside a single on-chain instruction alongside the settlement
+// attestation (programs/ashlar/src/instructions/settle_direct_transfer.rs), so one `signature`
+// covers every leg — there's no partial-failure state to represent anymore, since a Solana
+// transaction is all-or-nothing.
 export interface DirectTransferEvidence {
   kind: 'direct-transfer';
   workflowId: string;
   totalAmountUsd: number;
   usdcUsdPrice: number;
-  legs: { recipient: string; amountUsd: number; usdcAtomic: string; signature: string }[];
-  /** Present only while at least one recipient still hasn't been paid — a leg failed mid-transfer
-   * and the settlement script can be safely re-run to finish it (see scripts/lib/directTransfer.ts). */
-  status?: 'partial';
+  signature: string;
+  legs: { recipient: string; amountUsd: number; usdcAtomic: string }[];
 }
 
 export type SettlementEvidence = VendorSplitSettlementEvidence | DirectTransferEvidence;
