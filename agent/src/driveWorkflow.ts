@@ -22,7 +22,7 @@ import {
   deriveWorkflowPdas,
   getWorkflow,
 } from '../../scripts/lib/policyEngineClient.js';
-import { TOOLS, createToolExecutor } from './tools.js';
+import { TOOLS, createToolExecutor, type ToolRecipient } from './tools.js';
 import { notifyOwner } from '../../scripts/lib/notify.js';
 
 const MAX_TURNS = 10;
@@ -51,6 +51,11 @@ export type AgentEvent =
 export interface DriveWorkflowOptions {
   triggerNote?: string;
   onEvent?: (event: AgentEvent) => void;
+  /** Explicit real wallet-address recipient(s) for this trigger, each with its own USD amount —
+   * set by the dashboard's Agent page when the operator names real recipients instead of relying
+   * on the legacy single-vendor stand-in. Defaults to that legacy stand-in when omitted, so
+   * existing CLI/script callers are unaffected. */
+  recipients?: ToolRecipient[];
 }
 
 export async function driveWorkflow(
@@ -67,13 +72,15 @@ export async function driveWorkflow(
   const client = new Anthropic({ apiKey: anthropicApiKey });
   const ctx = await loadPolicyEngineContext();
   const workflowId = new anchor.BN(workflowIdRaw.toString());
-  const recipient = resolveVendorPubkey();
+  const recipients: ToolRecipient[] = options.recipients?.length
+    ? options.recipients
+    : [{ pubkey: resolveVendorPubkey() }];
   const { workflow: workflowPda } = deriveWorkflowPdas(
     ctx.program.programId,
     ctx.owner.publicKey,
     workflowId,
   );
-  const executeTool = createToolExecutor(ctx, workflowId, recipient);
+  const executeTool = createToolExecutor(ctx, workflowId, recipients);
 
   // triggerNote lets a caller (e.g. scripts/devnet/adversarial-agent-demo.ts) attach extra
   // trigger text — used to test the agent against an injected/manipulated instruction. It's
