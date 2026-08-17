@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+import { PublicKey } from '@solana/web3.js';
 import {
   Bot,
   CheckCircle2,
@@ -7,7 +8,10 @@ import {
   ExternalLink,
   Loader2,
   PauseCircle,
+  Plus,
   Sparkles,
+  Trash2,
+  Users,
   Wrench,
   XCircle,
   Zap,
@@ -21,6 +25,23 @@ import {
   type AgentEventMessage,
   type MockInvoice,
 } from '../types.js';
+
+const MAX_RECIPIENTS = 4;
+
+interface RecipientRow {
+  id: number;
+  address: string;
+  amountUsd: string;
+}
+
+function isValidSolanaAddress(address: string): boolean {
+  try {
+    new PublicKey(address.trim());
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 interface AgentProps {
   onVerify: (pda: string) => void;
@@ -80,6 +101,8 @@ export function Agent({ onVerify }: AgentProps) {
   const [instruction, setInstruction] = useState('Transfer $5 to Acme Corp, pending my approval.');
   const [invoices, setInvoices] = useState<MockInvoice[] | null>(null);
   const [invoiceId, setInvoiceId] = useState<number>(1);
+  const [recipients, setRecipients] = useState<RecipientRow[]>([]);
+  const recipientIdCounter = useRef(0);
   const [status, setStatus] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [workflowPda, setWorkflowPda] = useState<string | null>(null);
@@ -88,6 +111,32 @@ export function Agent({ onVerify }: AgentProps) {
   const idCounter = useRef(0);
   const toast = useToast();
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  function addRecipient() {
+    if (recipients.length >= MAX_RECIPIENTS) return;
+    recipientIdCounter.current += 1;
+    setRecipients((prev) => [...prev, { id: recipientIdCounter.current, address: '', amountUsd: '' }]);
+  }
+
+  function updateRecipient(id: number, patch: Partial<Omit<RecipientRow, 'id'>>) {
+    setRecipients((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+
+  function removeRecipient(id: number) {
+    setRecipients((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  // Only rows with both a filled address and amount count — a half-filled row is silently
+  // ignored rather than blocking submission, since the user may still be typing it.
+  const filledRecipients = recipients.filter((r) => r.address.trim() && r.amountUsd.trim());
+  const recipientErrors = filledRecipients
+    .filter((r) => !isValidSolanaAddress(r.address))
+    .map((r) => r.id);
+  const recipientsTotal = filledRecipients.reduce((sum, r) => sum + (Number(r.amountUsd) || 0), 0);
+  const hasRecipients = filledRecipients.length > 0;
+  const recipientsValid = hasRecipients
+    ? recipientErrors.length === 0 && filledRecipients.every((r) => Number(r.amountUsd) > 0)
+    : true;
 
   useEffect(() => {
     fetch(`${RELAY_URL}/invoices`)
@@ -106,6 +155,10 @@ export function Agent({ onVerify }: AgentProps) {
   async function handleTrigger(e: FormEvent) {
     e.preventDefault();
     if (!instruction.trim() || status === 'starting' || status === 'running') return;
+    if (!recipientsValid) {
+      setError('Fix the recipient list before triggering — every filled row needs a valid Solana wallet address and a positive amount.');
+      return;
+    }
 
     setStatus('starting');
     setError(null);
@@ -117,7 +170,13 @@ export function Agent({ onVerify }: AgentProps) {
       const res = await fetch(`${RELAY_URL}/agent/trigger`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ instruction: instruction.trim(), invoiceId }),
+        body: JSON.stringify({
+          instruction: instruction.trim(),
+          invoiceId,
+          recipients: hasRecipients
+            ? filledRecipients.map((r) => ({ address: r.address.trim(), amountUsd: Number(r.amountUsd) }))
+            : undefined,
+        }),
       });
       if (!res.ok) throw new Error(`relay returned ${res.status}: ${await res.text()}`);
       const { workflowPda: pda } = (await res.json()) as { workflowPda: string };
@@ -213,6 +272,70 @@ export function Agent({ onVerify }: AgentProps) {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="flex items-center gap-1.5 text-[11px] tracking-wide uppercase text-(--color-mist) m-0">
+                <Users className="w-3.5 h-3.5" /> Recipients — real wallet addresses, paid directly
+              </p>
+              {hasRecipients && (
+                <span className="text-[11px] font-mono text-(--color-mist)">total ${recipientsTotal.toFixed(2)}</span>
+              )}
+            </div>
+            {recipients.length === 0 ? (
+              <p className="text-[12px] text-(--color-mist) mb-2 m-0">
+                No recipient set — falls back to the demo vendor wallet. Add a real Solana address to
+                actually control where funds go, or add several for a group transfer (up to{' '}
+                {MAX_RECIPIENTS}).
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2 mb-2">
+                {recipients.map((r) => {
+                  const filled = r.address.trim() && r.amountUsd.trim();
+                  const invalid = filled && !isValidSolanaAddress(r.address);
+                  return (
+                    <div key={r.id} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={r.address}
+                        onChange={(e) => updateRecipient(r.id, { address: e.target.value })}
+                        placeholder="Solana wallet address"
+                        className={`flex-1 min-w-0 rounded-lg border bg-(--color-surface) px-3 py-2 text-[12.5px] font-mono outline-none transition-colors ${
+                          invalid ? 'border-red-400' : 'border-(--color-hairline) focus:border-(--color-accent)'
+                        }`}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={r.amountUsd}
+                        onChange={(e) => updateRecipient(r.id, { amountUsd: e.target.value })}
+                        placeholder="USD"
+                        className="w-24 shrink-0 rounded-lg border border-(--color-hairline) bg-(--color-surface) px-3 py-2 text-[12.5px] font-mono outline-none focus:border-(--color-accent) transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeRecipient(r.id)}
+                        className="shrink-0 text-(--color-mist) hover:text-red-600 p-1.5"
+                        title="Remove recipient"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {recipients.length < MAX_RECIPIENTS && (
+              <button
+                type="button"
+                onClick={addRecipient}
+                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-(--color-accent) hover:text-(--color-accent-hover)"
+              >
+                <Plus className="w-3.5 h-3.5" /> {recipients.length === 0 ? 'Add recipient' : 'Add another recipient'}
+              </button>
+            )}
           </div>
 
           <button
