@@ -14,6 +14,7 @@ import {
 import { StatCard } from '../components/StatCard.js';
 import { SkeletonCards, SkeletonRows } from '../components/Skeleton.js';
 import { useToast } from '../components/Toast.js';
+import { useLiveEvents } from '../hooks/useLiveEvents.js';
 import {
   explorerAddress,
   formatTime,
@@ -44,7 +45,8 @@ export function Overview({ onVerify }: OverviewProps) {
   const [, forceRender] = useState(0);
   const toast = useToast();
 
-  useEffect(() => {
+  function load(silent = false) {
+    if (!silent) setLoading(true);
     Promise.all([
       fetch(`${RELAY_URL}/workflows?limit=300`).then((r) => r.json()) as Promise<{
         total: number;
@@ -67,7 +69,14 @@ export function Overview({ onVerify }: OverviewProps) {
         }
       })
       .catch(() => setLoading(false));
+  }
 
+  useEffect(load, []);
+  // Real-time: any attestation, deploy, resolution, or settlement anywhere on the program
+  // refreshes every card on this page live, without a manual reload.
+  useLiveEvents(() => load(true));
+
+  useEffect(() => {
     const source = new EventSource(`${RELAY_URL}/events`);
     source.onmessage = (msg) => {
       const event = JSON.parse(msg.data) as AttestationEvent;
