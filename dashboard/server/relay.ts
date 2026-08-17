@@ -29,6 +29,7 @@ import { compileAndInitializeWorkflow, deployWorkflowFromInstruction } from '../
 import { loadPolicyEngineContext, submitResumeAfterOverride } from '../../scripts/lib/policyEngineClient.js';
 import { loadChainClient, verifyWorkflow } from '../../verifier/src/index.js';
 import { driveWorkflow, type AgentEvent } from '../../agent/src/driveWorkflow.js';
+import { MAX_RECIPIENTS } from '../../scripts/lib/directTransfer.js';
 import { listMockInvoices } from '../../agent/src/mockInvoices.js';
 import type { Ashlar } from '../../target/types/ashlar.js';
 
@@ -352,7 +353,11 @@ const server = createServer((req, res) => {
         return;
       }
 
-      let body: { instruction?: string; invoiceId?: number };
+      let body: {
+        instruction?: string;
+        invoiceId?: number;
+        recipients?: { address?: string; amountUsd?: number }[];
+      };
       try {
         body = JSON.parse(await readBody(req)) as typeof body;
       } catch {
@@ -364,15 +369,42 @@ const server = createServer((req, res) => {
         return;
       }
 
+      // Explicit real wallet-address recipients from the Agent page's recipient list, each with
+      // its own amount — real addresses, not names parsed out of the instruction sentence. Every
+      // address must decode as a real Solana public key or the whole request is rejected outright
+      // rather than silently dropping a bad entry.
+      let recipients: { pubkey: PublicKey; amountUsd: number }[] = [];
+      if (body.recipients && body.recipients.length > 0) {
+        if (body.recipients.length > MAX_RECIPIENTS) {
+          res.writeHead(400).end(`at most ${MAX_RECIPIENTS} recipients are supported in one transfer`);
+          return;
+        }
+        try {
+          recipients = body.recipients.map((r) => {
+            if (!r.address?.trim()) throw new Error('recipient address is required');
+            if (typeof r.amountUsd !== 'number' || !(r.amountUsd > 0)) {
+              throw new Error(`recipient ${r.address} needs a positive amountUsd`);
+            }
+            return { pubkey: new PublicKey(r.address.trim()), amountUsd: r.amountUsd };
+          });
+        } catch (err) {
+          res.writeHead(400).end(`invalid recipients: ${(err as Error).message}`);
+          return;
+        }
+      }
+
       try {
-        const init = await compileAndInitializeWorkflow(body.instruction, (message) =>
-          console.log('[dashboard-server/agent]', message),
+        const init = await compileAndInitializeWorkflow(
+          body.instruction,
+          (message) => console.log('[dashboard-server/agent]', message),
+          recipients,
         );
         res
           .writeHead(202, { 'content-type': 'application/json' })
           .end(JSON.stringify({ workflowPda: init.workflowPda, workflowId: init.workflowId.toString() }));
 
         driveWorkflow(init.workflowId.toString(), body.invoiceId, {
+          recipients: recipients.length > 0 ? recipients : undefined,
           onEvent: (event) => broadcast({ type: 'agent', workflow: init.workflowPda, event }),
         }).catch((err: unknown) => {
           console.error('[dashboard-server/agent] driveWorkflow failed:', err);
