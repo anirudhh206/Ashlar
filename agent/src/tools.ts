@@ -162,16 +162,18 @@ export function createToolExecutor(
         const workflow = await getWorkflow(ctx, pdas.workflow);
 
         if (isExplicit) {
-          // Real fund movement: a plain SPL transfer straight to each real recipient wallet —
-          // no vendor invoice, no tax/yield skim. The harness does this, never the model.
-          const { evidence, onChainReference } = await executeDirectTransfer(
-            workflowId.toString(),
+          // Real fund movement happens inside the Solana program itself here — a transfer_checked
+          // CPI per real recipient wallet, atomic with the settlement attestation in one
+          // transaction. No vendor invoice, no tax/yield skim, and no separate submitMockSettlement
+          // call: executeDirectTransfer's on-chain instruction already does both at once.
+          const { evidence } = await executeDirectTransfer(
+            ctx,
+            workflowId,
             recipients.map((r) => ({ pubkey: r.pubkey, amountUsd: r.amountUsd! })),
           );
-          const signature = await submitMockSettlement(ctx, workflowId, onChainReference);
           const receipt = await mintReceipt(ctx.owner.secretKey, workflowId.toString(), evidence);
           await notifyOwner(buildReceiptNotification(workflowId.toString(), receipt));
-          return { signature, evidence, receipt, explorer: explorerLink(signature) };
+          return { signature: evidence.signature, evidence, receipt, explorer: explorerLink(evidence.signature) };
         }
 
         // Legacy path — a Pyth-priced 85/10/5 split across vendor (paid via real x402 rails),
