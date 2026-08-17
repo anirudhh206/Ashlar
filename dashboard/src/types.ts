@@ -98,6 +98,7 @@ export interface MockInvoice {
   amount: number;
   vendor: string;
   status: 'approved' | 'pending';
+  recipientAddress?: string;
   settled?: boolean;
 }
 
