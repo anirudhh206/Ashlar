@@ -37,6 +37,16 @@ export function mockSettlementPreimage(
   ]);
 }
 
+/** Mirrors programs/ashlar/src/instructions/settle_direct_transfer.rs's `data` build exactly:
+ * for each recipient, in the same order the instruction's remaining_accounts were passed,
+ * 32 bytes of the recipient token account's *owner* wallet (not the token account address
+ * itself) followed by 8 bytes LE of that recipient's atomic amount — then the settlement
+ * reference string appended once at the end. */
+export function settleDirectTransferPreimage(legs: { ownerPubkey: PublicKey; amount: BN }[], settlementReference: string): Buffer {
+  const legBytes = legs.map((leg) => Buffer.concat([leg.ownerPubkey.toBuffer(), bnToLE8(leg.amount)]));
+  return Buffer.concat([...legBytes, Buffer.from(settlementReference, 'utf8')]);
+}
+
 export function resumeAfterOverridePreimage(approved: boolean): Buffer {
   return Buffer.from([approved ? 1 : 0, 0x6f, 0x76, 0x72]); // 'o', 'v', 'r'
 }
