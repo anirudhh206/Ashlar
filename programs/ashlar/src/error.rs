@@ -14,4 +14,12 @@ pub enum ErrorCode {
     AllowlistTooLarge,
     #[msg("Workflow is not paused awaiting an owner override")]
     NotPendingOverride,
+    #[msg("Recipient count must be between 1 and 4, and must match the amounts provided")]
+    InvalidRecipientCount,
+    #[msg("A recipient's token account is not owned by a wallet on this workflow's allowlist")]
+    RecipientNotAllowlisted,
+    #[msg("A recipient's token account is for the wrong mint")]
+    InvalidMint,
+    #[msg("Total settlement amount overflowed u64")]
+    AmountOverflow,
 }
