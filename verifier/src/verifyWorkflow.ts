@@ -6,7 +6,7 @@
  * to compare against Attestation.data_hash. See hashRecompute.ts for why this is necessary (2 of
  * the 5 step kinds have no recoverable preimage in final account state at all).
  */
-import type { PublicKey } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import type { BN, BorshInstructionCoder } from '@anchor-lang/core';
 import {
   type ChainClient,
@@ -21,10 +21,27 @@ import {
   complianceOrApprovalPreimage,
   guardrailCheckPreimage,
   mockSettlementPreimage,
+  settleDirectTransferPreimage,
   resumeAfterOverridePreimage,
   keccak256Hex,
   bytesToHex,
 } from './hashRecompute.js';
+
+/** settle_direct_transfer's 8 named accounts (owner, workflow, attestation, ledger, mint,
+ * owner_token_account, token_program, system_program) — anything after this in the instruction's
+ * account list is a remaining_account (one recipient token account per real recipient). Mirrors
+ * the account order in programs/ashlar/src/instructions/settle_direct_transfer.rs's Accounts
+ * struct exactly. */
+const SETTLE_DIRECT_TRANSFER_NAMED_ACCOUNT_COUNT = 8;
+
+/** A token account's owner (the wallet authorized to spend from it) lives at byte offset 32..64
+ * of the SPL Token account layout — same raw read `anchor_spl::token::accessor::authority` does
+ * on-chain, done here client-side since there's no Anchor account decoder for it in this package. */
+async function readTokenAccountOwner(connection: ChainClient['connection'], ata: PublicKey): Promise<PublicKey> {
+  const info = await connection.getAccountInfo(ata);
+  if (!info) throw new Error(`recipient token account ${ata.toBase58()} does not exist on-chain`);
+  return new PublicKey(info.data.subarray(32, 64));
+}
 
 export interface StepVerification {
   stepIndex: number;
@@ -220,6 +237,25 @@ export async function verifyWorkflow(client: ChainClient, workflow: PublicKey): 
             workflowState.pendingRecipient,
             field(data, 'settlementReference', 'settlement_reference') as string,
           ),
+        );
+      } else if (decoded.name === 'settleDirectTransfer' || decoded.name === 'settle_direct_transfer') {
+        const recipientAtas = ashlarIx.accountKeyIndexes
+          .slice(SETTLE_DIRECT_TRANSFER_NAMED_ACCOUNT_COUNT)
+          .map((idx) => accountKeys[idx]!);
+        const amounts = field(data, 'amounts') as BN[];
+        if (recipientAtas.length !== amounts.length) {
+          throw new Error(
+            `settle_direct_transfer: ${recipientAtas.length} recipient accounts but ${amounts.length} amounts`,
+          );
+        }
+        const legs = await Promise.all(
+          recipientAtas.map(async (ata, j) => ({
+            ownerPubkey: await readTokenAccountOwner(client.connection, ata),
+            amount: amounts[j]!,
+          })),
+        );
+        recomputedHash = keccak256Hex(
+          settleDirectTransferPreimage(legs, field(data, 'settlementReference', 'settlement_reference') as string),
         );
       } else if (decoded.name === 'resumeAfterOverride' || decoded.name === 'resume_after_override') {
         recomputedHash = keccak256Hex(resumeAfterOverridePreimage(field(data, 'approved') as boolean));
