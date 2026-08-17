@@ -342,7 +342,7 @@ const server = createServer((req, res) => {
         res.writeHead(403).end('this endpoint only accepts requests from the same machine');
         return;
       }
-      let body: { amount?: number; vendor?: string; status?: string };
+      let body: { amount?: number; recipientAddress?: string };
       try {
         body = JSON.parse(await readBody(req)) as typeof body;
       } catch {
@@ -353,15 +353,14 @@ const server = createServer((req, res) => {
         res.writeHead(400).end('amount must be a positive number');
         return;
       }
-      if (!body.vendor?.trim()) {
-        res.writeHead(400).end('vendor is required');
+      let recipientAddress: string;
+      try {
+        recipientAddress = new PublicKey((body.recipientAddress ?? '').trim()).toBase58();
+      } catch {
+        res.writeHead(400).end('recipientAddress must be a valid Solana wallet address');
         return;
       }
-      if (body.status !== 'approved' && body.status !== 'pending') {
-        res.writeHead(400).end('status must be "approved" or "pending"');
-        return;
-      }
-      const invoice = createMockInvoice({ amount: body.amount, vendor: body.vendor.trim(), status: body.status });
+      const invoice = createMockInvoice({ amount: body.amount, recipientAddress });
       res.writeHead(201, { 'content-type': 'application/json' }).end(JSON.stringify({ invoice }));
       return;
     }
