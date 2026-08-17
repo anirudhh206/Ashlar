@@ -55,7 +55,7 @@ export interface DriveWorkflowOptions {
    * set by the dashboard's Agent page when the operator names real recipients instead of relying
    * on the legacy single-vendor stand-in. Defaults to that legacy stand-in when omitted, so
    * existing CLI/script callers are unaffected. */
-  recipients?: ToolRecipient[];
+  recipients?: ToolRecipient[] | undefined;
 }
 
 export async function driveWorkflow(
