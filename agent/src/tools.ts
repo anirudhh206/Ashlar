@@ -147,6 +147,12 @@ export function createToolExecutor(
             return { error: `Recipient ${notAllowlisted.pubkey.toBase58()} is not on this workflow's on-chain allowlist` };
           }
         }
+        // For an explicit transfer the on-chain spend_cap was itself set to this same total at
+        // init time (see deployWorkflow.ts), so this check can never fail by construction — its
+        // real value here is that `amount` is harness-computed from the pre-configured recipient
+        // list, not read from the model's own tool-call argument, so a manipulated model can't
+        // inflate the amount actually checked/settled. The legacy single-vendor path below keeps
+        // trusting the model's `amount` argument, which is what the on-chain cap genuinely guards.
         const amount = isExplicit ? new anchor.BN(Math.round(explicitTotalUsd!)) : new anchor.BN(Number(input.amount));
         const signature = await submitGuardrailCheck(ctx, workflowId, amount, primaryRecipient);
         return { signature, explorer: explorerLink(signature) };
