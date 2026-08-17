@@ -51,23 +51,31 @@ function VendorSplitCard({ s, i }: { s: VendorSplitSettlementEvidence; i: number
         ))}
       </div>
 
-      <div className="flex gap-4 pt-3 border-t border-(--color-hairline) text-[12.5px]">
-        <a
-          href={explorerTx(s.taxReserveTransferSignature)}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 font-medium text-(--color-accent) hover:text-(--color-accent-hover)"
-        >
-          Tax-reserve tx <ExternalLink className="w-3.5 h-3.5" />
-        </a>
-        <a
-          href={explorerTx(s.yieldPoolTransferSignature)}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 font-medium text-(--color-accent) hover:text-(--color-accent-hover)"
-        >
-          Yield-pool tx <ExternalLink className="w-3.5 h-3.5" />
-        </a>
+      <div className="flex gap-4 pt-3 border-t border-(--color-hairline) text-[12.5px] flex-wrap">
+        {s.taxReserveTransferSignature ? (
+          <a
+            href={explorerTx(s.taxReserveTransferSignature)}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 font-medium text-(--color-accent) hover:text-(--color-accent-hover)"
+          >
+            Tax-reserve tx <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        ) : (
+          <span className="text-(--color-mist)">Tax-reserve tx — not yet sent</span>
+        )}
+        {s.yieldPoolTransferSignature ? (
+          <a
+            href={explorerTx(s.yieldPoolTransferSignature)}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 font-medium text-(--color-accent) hover:text-(--color-accent-hover)"
+          >
+            Yield-pool tx <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        ) : (
+          <span className="text-(--color-mist)">Yield-pool tx — not yet sent</span>
+        )}
       </div>
     </>
   );
@@ -189,7 +197,7 @@ export function Settlements() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {s.kind === 'direct-transfer' && s.status === 'partial' && (
+                {s.status === 'partial' && (
                   <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold rounded-full px-2 py-0.5 bg-red-50 text-red-700">
                     <CircleAlert className="w-3 h-3" /> incomplete — needs retry
                   </span>

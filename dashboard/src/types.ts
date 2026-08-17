@@ -59,10 +59,14 @@ export interface VendorSplitSettlementEvidence {
     yieldPoolUsdcAtomic: string;
   };
   vendorPayment: { invoiceUrl: string; status: number };
+  /** Empty string means this leg hasn't gone out yet — only possible when `status: 'partial'`. */
   taxReserveTransferSignature: string;
   yieldPoolTransferSignature: string;
   ap2Mandate: { signature: string; verified: boolean };
   agentIdentity: { registered: boolean; assetAddress: string };
+  /** Present only when a leg failed after the vendor was already paid — see
+   * scripts/lib/splitSettlement.ts's doc comment on the matching field. */
+  status?: 'partial';
 }
 
 // A direct multi-recipient transfer (scripts/lib/directTransfer.ts) — real wallet addresses
