@@ -162,8 +162,7 @@ export function Agent({ onVerify }: AgentProps) {
   // server-side and disappears from the picker here live, no manual refresh needed.
   useLiveEvents(loadInvoices);
 
-  async function handleCreateInvoice(e: FormEvent) {
-    e.preventDefault();
+  async function handleCreateInvoice() {
     const amount = Number(newInvoice.amount);
     if (!(amount > 0) || !newInvoice.vendor.trim()) return;
     setCreatingInvoice(true);
@@ -299,10 +298,12 @@ export function Agent({ onVerify }: AgentProps) {
             </div>
 
             {showNewInvoice && (
-              <form
-                onSubmit={handleCreateInvoice}
-                className="flex flex-wrap items-end gap-2 mb-3 p-3 rounded-lg bg-(--color-surface) border border-(--color-hairline)"
-              >
+              // A plain div, not a nested <form> — this already sits inside the page's main
+              // "trigger the agent" form, and HTML doesn't allow forms inside forms (the browser
+              // silently does a native page-reloading submit instead of running React's handler
+              // if you nest them, which is exactly the "page refreshes, invoice never appears"
+              // bug this replaced).
+              <div className="flex flex-wrap items-end gap-2 mb-3 p-3 rounded-lg bg-(--color-surface) border border-(--color-hairline)">
                 <div className="flex-1 min-w-[90px]">
                   <label className="block text-[10.5px] text-(--color-mist) mb-1">Amount (USD)</label>
                   <input
@@ -336,13 +337,14 @@ export function Agent({ onVerify }: AgentProps) {
                   </select>
                 </div>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={handleCreateInvoice}
                   disabled={creatingInvoice || !(Number(newInvoice.amount) > 0) || !newInvoice.vendor.trim()}
                   className="rounded-md bg-(--color-accent) text-white text-[12.5px] font-medium px-3.5 py-1.5 hover:bg-(--color-accent-hover) disabled:opacity-50"
                 >
                   {creatingInvoice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Create'}
                 </button>
-              </form>
+              </div>
             )}
 
             <div className="grid sm:grid-cols-3 gap-2">
