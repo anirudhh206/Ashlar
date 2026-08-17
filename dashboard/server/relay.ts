@@ -30,7 +30,7 @@ import { loadPolicyEngineContext, submitResumeAfterOverride } from '../../script
 import { loadChainClient, verifyWorkflow } from '../../verifier/src/index.js';
 import { driveWorkflow, type AgentEvent } from '../../agent/src/driveWorkflow.js';
 import { MAX_RECIPIENTS } from '../../scripts/lib/directTransfer.js';
-import { listMockInvoices } from '../../agent/src/mockInvoices.js';
+import { listMockInvoices, createMockInvoice, markMockInvoiceSettled } from '../../agent/src/mockInvoices.js';
 import type { Ashlar } from '../../target/types/ashlar.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -331,6 +331,41 @@ const server = createServer((req, res) => {
       return;
     }
 
+    // Creates a new mock invoice for real, persisted to treasury/mock-invoices.json — same
+    // loopback-only trust boundary as /deploy, since this mutates local demo state rather than
+    // just reading it. Not a real invoicing integration; still exactly the same kind of synthetic
+    // trigger data the Agent page has always used, just editable from the dashboard instead of by
+    // hand-editing agent/src/mockInvoices.ts.
+    if (req.method === 'POST' && url.pathname === '/invoices') {
+      const clientIp = req.socket.remoteAddress ?? 'unknown';
+      if (!isLoopback(clientIp)) {
+        res.writeHead(403).end('this endpoint only accepts requests from the same machine');
+        return;
+      }
+      let body: { amount?: number; vendor?: string; status?: string };
+      try {
+        body = JSON.parse(await readBody(req)) as typeof body;
+      } catch {
+        res.writeHead(400).end('invalid JSON body');
+        return;
+      }
+      if (typeof body.amount !== 'number' || !(body.amount > 0)) {
+        res.writeHead(400).end('amount must be a positive number');
+        return;
+      }
+      if (!body.vendor?.trim()) {
+        res.writeHead(400).end('vendor is required');
+        return;
+      }
+      if (body.status !== 'approved' && body.status !== 'pending') {
+        res.writeHead(400).end('status must be "approved" or "pending"');
+        return;
+      }
+      const invoice = createMockInvoice({ amount: body.amount, vendor: body.vendor.trim(), status: body.status });
+      res.writeHead(201, { 'content-type': 'application/json' }).end(JSON.stringify({ invoice }));
+      return;
+    }
+
     // The flagship endpoint: compiles a real instruction, initializes a real on-chain workflow,
     // then hands it to the actual live Claude tool-use loop (agent/src/driveWorkflow.ts) — not
     // the deterministic /deploy path. Same loopback-only trust boundary as /deploy and /resume:
@@ -368,6 +403,7 @@ const server = createServer((req, res) => {
         res.writeHead(400).end('instruction and invoiceId are required');
         return;
       }
+      const invoiceId = body.invoiceId;
 
       // Explicit real wallet-address recipients from the Agent page's recipient list, each with
       // its own amount — real addresses, not names parsed out of the instruction sentence. Every
@@ -403,9 +439,17 @@ const server = createServer((req, res) => {
           .writeHead(202, { 'content-type': 'application/json' })
           .end(JSON.stringify({ workflowPda: init.workflowPda, workflowId: init.workflowId.toString() }));
 
-        driveWorkflow(init.workflowId.toString(), body.invoiceId, {
+        driveWorkflow(init.workflowId.toString(), invoiceId, {
           recipients: recipients.length > 0 ? recipients : undefined,
-          onEvent: (event) => broadcast({ type: 'agent', workflow: init.workflowPda, event }),
+          onEvent: (event) => {
+            // Real, not optimistic: only a workflow that actually reached Completed on-chain
+            // (never paused/rejected/max-turns) marks its trigger invoice settled, so it drops
+            // off the Agent page's picker.
+            if (event.type === 'finished' && event.status === 'completed') {
+              markMockInvoiceSettled(invoiceId);
+            }
+            broadcast({ type: 'agent', workflow: init.workflowPda, event });
+          },
         }).catch((err: unknown) => {
           console.error('[dashboard-server/agent] driveWorkflow failed:', err);
           broadcast({
@@ -617,6 +661,7 @@ server.listen(PORT, () => {
   console.log(`[dashboard-server] GET  /settlements                   (every real settlement)`);
   console.log(`[dashboard-server] GET  /receipts                      (real cNFT receipts, live from Helius DAS)`);
   console.log(`[dashboard-server] GET  /invoices                      (real mock invoices for the Agent page)`);
+  console.log(`[dashboard-server] POST /invoices                      (create a new mock invoice — localhost only)`);
   console.log(`[dashboard-server] POST /verify                        (real independent verification, on demand)`);
   console.log(`[dashboard-server] POST /deploy                        (real devnet deploy — localhost only)`);
   console.log(`[dashboard-server] POST /resume                        (real override resolution — localhost only)`);
