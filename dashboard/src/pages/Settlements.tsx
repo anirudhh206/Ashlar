@@ -188,11 +188,18 @@ export function Settlements() {
                   workflow {s.workflowId} · {workflowIdToDate(s.workflowId).toLocaleString()}
                 </p>
               </div>
-              <span className="text-[10.5px] font-semibold rounded-full px-2 py-0.5 bg-(--color-surface) text-(--color-mist)">
-                {s.kind === 'direct-transfer'
-                  ? `direct transfer, ${s.legs.length} recipient${s.legs.length === 1 ? '' : 's'}`
-                  : 'vendor split'}
-              </span>
+              <div className="flex items-center gap-2">
+                {s.kind === 'direct-transfer' && s.status === 'partial' && (
+                  <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold rounded-full px-2 py-0.5 bg-red-50 text-red-700">
+                    <CircleAlert className="w-3 h-3" /> incomplete — needs retry
+                  </span>
+                )}
+                <span className="text-[10.5px] font-semibold rounded-full px-2 py-0.5 bg-(--color-surface) text-(--color-mist)">
+                  {s.kind === 'direct-transfer'
+                    ? `direct transfer, ${s.legs.length} recipient${s.legs.length === 1 ? '' : 's'}`
+                    : 'vendor split'}
+                </span>
+              </div>
             </div>
 
             {s.kind === 'direct-transfer' ? <DirectTransferCard s={s} i={i} /> : <VendorSplitCard s={s} i={i} />}

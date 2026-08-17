@@ -73,6 +73,9 @@ export interface DirectTransferEvidence {
   totalAmountUsd: number;
   usdcUsdPrice: number;
   legs: { recipient: string; amountUsd: number; usdcAtomic: string; signature: string }[];
+  /** Present only while at least one recipient still hasn't been paid — a leg failed mid-transfer
+   * and the settlement script can be safely re-run to finish it (see scripts/lib/directTransfer.ts). */
+  status?: 'partial';
 }
 
 export type SettlementEvidence = VendorSplitSettlementEvidence | DirectTransferEvidence;
