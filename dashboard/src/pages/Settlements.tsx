@@ -4,6 +4,7 @@ import { CircleAlert, ExternalLink, Receipt } from 'lucide-react';
 import { explorerTx, RELAY_URL, workflowIdToDate, type SettlementEvidence } from '../types.js';
 import { EmptyState } from '../components/EmptyState.js';
 import { SkeletonRows } from '../components/Skeleton.js';
+import { useLiveEvents } from '../hooks/useLiveEvents.js';
 
 const segColors = ['bg-(--color-ink)', 'bg-(--color-accent)', 'bg-[#d7d1bd]'];
 
@@ -16,7 +17,8 @@ export function Settlements() {
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  function load(silent = false) {
+    if (!silent) setStatus('loading');
     fetch(`${RELAY_URL}/settlements`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`relay returned ${res.status}`);
@@ -31,7 +33,11 @@ export function Settlements() {
         setError(err.message);
         setStatus('error');
       });
-  }, []);
+  }
+
+  useEffect(load, []);
+  // Real-time: a new settlement lands here live the moment the agent completes one, anywhere.
+  useLiveEvents(() => load(true));
 
   if (status === 'loading') return <SkeletonRows count={3} />;
   if (status === 'error') {
