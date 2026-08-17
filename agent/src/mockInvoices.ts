@@ -22,6 +22,11 @@ export interface MockInvoice {
   amount: number;
   vendor: string;
   status: 'approved' | 'pending';
+  /** A real Solana wallet address baked into the invoice itself, set at creation time — the
+   * dashboard's Agent page uses this as the trigger's recipient automatically, without the
+   * operator having to separately fill in the Recipients section every time. Older invoices
+   * (created before this existed) don't have one and fall back to the legacy vendor stand-in. */
+  recipientAddress?: string;
   /** Set once the workflow that triggered this invoice actually reaches Completed on-chain —
    * see dashboard/server/relay.ts's /agent/trigger handler, which is the only writer of this
    * field. An invoice can be triggered again after settling (nothing stops re-using an id), but
@@ -60,10 +65,19 @@ export function listMockInvoices(): MockInvoice[] {
   return loadStore();
 }
 
-export function createMockInvoice(input: { amount: number; vendor: string; status: 'approved' | 'pending' }): MockInvoice {
+export function createMockInvoice(input: { amount: number; recipientAddress: string }): MockInvoice {
   const invoices = loadStore();
   const nextId = invoices.reduce((max, inv) => Math.max(max, inv.id), 0) + 1;
-  const invoice: MockInvoice = { id: nextId, amount: input.amount, vendor: input.vendor, status: input.status };
+  // `vendor` is kept only as a display label for the picker card — an approved invoice created
+  // this way is always meant to settle immediately, unlike the legacy hand-authored invoices
+  // that model a real invoicing workflow's pending/approved distinction.
+  const invoice: MockInvoice = {
+    id: nextId,
+    amount: input.amount,
+    vendor: `${input.recipientAddress.slice(0, 4)}…${input.recipientAddress.slice(-4)}`,
+    status: 'approved',
+    recipientAddress: input.recipientAddress,
+  };
   invoices.push(invoice);
   saveStore(invoices);
   return invoice;
