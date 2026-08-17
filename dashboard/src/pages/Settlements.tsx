@@ -1,15 +1,122 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { CircleAlert, ExternalLink, Receipt } from 'lucide-react';
-import { explorerTx, RELAY_URL, workflowIdToDate, type SettlementEvidence } from '../types.js';
+import {
+  explorerAddress,
+  explorerTx,
+  RELAY_URL,
+  short,
+  workflowIdToDate,
+  type DirectTransferEvidence,
+  type SettlementEvidence,
+  type VendorSplitSettlementEvidence,
+} from '../types.js';
 import { EmptyState } from '../components/EmptyState.js';
 import { SkeletonRows } from '../components/Skeleton.js';
 import { useLiveEvents } from '../hooks/useLiveEvents.js';
 
-const segColors = ['bg-(--color-ink)', 'bg-(--color-accent)', 'bg-[#d7d1bd]'];
+const segColors = ['bg-(--color-ink)', 'bg-(--color-accent)', 'bg-[#d7d1bd]', 'bg-[#8c6a30]'];
 
 function usdc(atomic: string): string {
   return (Number(atomic) / 1_000_000).toFixed(2);
+}
+
+function VendorSplitCard({ s, i }: { s: VendorSplitSettlementEvidence; i: number }) {
+  const split = [
+    { label: 'vendor, via x402 / PayAI', atomic: s.splits.vendorUsdcAtomic },
+    { label: 'tax reserve', atomic: s.splits.taxReserveUsdcAtomic },
+    { label: 'yield pool', atomic: s.splits.yieldPoolUsdcAtomic },
+  ];
+  const total = split.reduce((sum, seg) => sum + Number(seg.atomic), 0);
+  return (
+    <>
+      <div className="flex w-full h-6 rounded-md overflow-hidden border border-(--color-hairline) mb-2.5">
+        {split.map((seg, j) => (
+          <motion.div
+            key={seg.label}
+            initial={{ width: 0 }}
+            animate={{ width: `${(Number(seg.atomic) / total) * 100}%` }}
+            transition={{ duration: 0.5, delay: Math.min(i, 6) * 0.05 + j * 0.08 }}
+            className={segColors[j]}
+          />
+        ))}
+      </div>
+      <div className="flex gap-4 text-[12px] mb-3 flex-wrap">
+        {split.map((seg, j) => (
+          <span key={seg.label} className="inline-flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${segColors[j]}`} />
+            <span className="font-mono">${usdc(seg.atomic)}</span>
+            <span className="text-(--color-mist)">{seg.label}</span>
+          </span>
+        ))}
+      </div>
+
+      <div className="flex gap-4 pt-3 border-t border-(--color-hairline) text-[12.5px]">
+        <a
+          href={explorerTx(s.taxReserveTransferSignature)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 font-medium text-(--color-accent) hover:text-(--color-accent-hover)"
+        >
+          Tax-reserve tx <ExternalLink className="w-3.5 h-3.5" />
+        </a>
+        <a
+          href={explorerTx(s.yieldPoolTransferSignature)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 font-medium text-(--color-accent) hover:text-(--color-accent-hover)"
+        >
+          Yield-pool tx <ExternalLink className="w-3.5 h-3.5" />
+        </a>
+      </div>
+    </>
+  );
+}
+
+function DirectTransferCard({ s, i }: { s: DirectTransferEvidence; i: number }) {
+  const total = s.legs.reduce((sum, leg) => sum + Number(leg.usdcAtomic), 0);
+  return (
+    <>
+      <div className="flex w-full h-6 rounded-md overflow-hidden border border-(--color-hairline) mb-2.5">
+        {s.legs.map((leg, j) => (
+          <motion.div
+            key={leg.recipient}
+            initial={{ width: 0 }}
+            animate={{ width: `${(Number(leg.usdcAtomic) / total) * 100}%` }}
+            transition={{ duration: 0.5, delay: Math.min(i, 6) * 0.05 + j * 0.08 }}
+            className={segColors[j % segColors.length]}
+          />
+        ))}
+      </div>
+      <div className="flex flex-col gap-2">
+        {s.legs.map((leg, j) => (
+          <div key={leg.recipient} className="flex items-center justify-between gap-2 text-[12px] flex-wrap">
+            <span className="inline-flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${segColors[j % segColors.length]}`} />
+              <span className="font-mono">${usdc(leg.usdcAtomic)}</span>
+              <span className="text-(--color-mist)">to</span>
+              <a
+                href={explorerAddress(leg.recipient)}
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono text-(--color-accent) hover:text-(--color-accent-hover)"
+              >
+                {short(leg.recipient)}
+              </a>
+            </span>
+            <a
+              href={explorerTx(leg.signature)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-(--color-accent) hover:text-(--color-accent-hover)"
+            >
+              tx <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        ))}
+      </div>
+    </>
+  );
 }
 
 export function Settlements() {
@@ -64,12 +171,6 @@ export function Settlements() {
         from <span className="font-mono">treasury/settlements/</span>, not a database.
       </p>
       {settlements.map((s, i) => {
-        const split = [
-          { label: 'vendor, via x402 / PayAI', atomic: s.splits.vendorUsdcAtomic },
-          { label: 'tax reserve', atomic: s.splits.taxReserveUsdcAtomic },
-          { label: 'yield pool', atomic: s.splits.yieldPoolUsdcAtomic },
-        ];
-        const total = split.reduce((sum, seg) => sum + Number(seg.atomic), 0);
         return (
           <motion.section
             key={s.workflowId}
@@ -87,47 +188,14 @@ export function Settlements() {
                   workflow {s.workflowId} · {workflowIdToDate(s.workflowId).toLocaleString()}
                 </p>
               </div>
+              <span className="text-[10.5px] font-semibold rounded-full px-2 py-0.5 bg-(--color-surface) text-(--color-mist)">
+                {s.kind === 'direct-transfer'
+                  ? `direct transfer, ${s.legs.length} recipient${s.legs.length === 1 ? '' : 's'}`
+                  : 'vendor split'}
+              </span>
             </div>
 
-            <div className="flex w-full h-6 rounded-md overflow-hidden border border-(--color-hairline) mb-2.5">
-              {split.map((seg, j) => (
-                <motion.div
-                  key={seg.label}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(Number(seg.atomic) / total) * 100}%` }}
-                  transition={{ duration: 0.5, delay: Math.min(i, 6) * 0.05 + j * 0.08 }}
-                  className={segColors[j]}
-                />
-              ))}
-            </div>
-            <div className="flex gap-4 text-[12px] mb-3 flex-wrap">
-              {split.map((seg, j) => (
-                <span key={seg.label} className="inline-flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${segColors[j]}`} />
-                  <span className="font-mono">${usdc(seg.atomic)}</span>
-                  <span className="text-(--color-mist)">{seg.label}</span>
-                </span>
-              ))}
-            </div>
-
-            <div className="flex gap-4 pt-3 border-t border-(--color-hairline) text-[12.5px]">
-              <a
-                href={explorerTx(s.taxReserveTransferSignature)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 font-medium text-(--color-accent) hover:text-(--color-accent-hover)"
-              >
-                Tax-reserve tx <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-              <a
-                href={explorerTx(s.yieldPoolTransferSignature)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 font-medium text-(--color-accent) hover:text-(--color-accent-hover)"
-              >
-                Yield-pool tx <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
+            {s.kind === 'direct-transfer' ? <DirectTransferCard s={s} i={i} /> : <VendorSplitCard s={s} i={i} />}
           </motion.section>
         );
       })}
