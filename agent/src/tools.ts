@@ -1,7 +1,7 @@
 /**
  * The agent's entire action surface. Five Claude tool-use schemas, one read-only and four
  * thin wrappers over a single specific on-chain Policy Engine call each. `workflowId` and
- * `recipient` are bound by `createTools` (the harness), not exposed as LLM-supplied
+ * `recipients` are bound by `createTools` (the harness), not exposed as LLM-supplied
  * arguments — the model can never target a different workflow or a different payout
  * destination than the one this trigger is actually for. Claude's tool-use API only lets the
  * model emit `{tool_name, tool_input}` matching one of these declared schemas: there is no
@@ -23,8 +23,18 @@ import {
   explorerLink,
 } from '../../scripts/lib/policyEngineClient.js';
 import { executeSplitSettlement } from '../../scripts/lib/splitSettlement.js';
+import { executeDirectTransfer } from '../../scripts/lib/directTransfer.js';
 import { mintReceipt, buildReceiptNotification } from '../../scripts/lib/receiptClient.js';
 import { notifyOwner } from '../../scripts/lib/notify.js';
+
+/** A single payout destination bound into the harness for this trigger. `amountUsd` is only
+ * present for an explicit multi-recipient (real wallet address) transfer — when absent, this is
+ * the legacy single-vendor stand-in path, and the model's own `submit_guardrail_check` amount
+ * argument (drawn from the invoice) is what's checked instead. */
+export interface ToolRecipient {
+  pubkey: PublicKey;
+  amountUsd?: number;
+}
 
 export const TOOLS: Anthropic.Tool[] = [
   {
@@ -67,7 +77,7 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'submit_guardrail_check',
     description:
-      "Submits the guardrail check on-chain for this workflow's fixed recipient, with the given amount. The chain enforces the spend cap and allowlist independently of anything you decide here.",
+      "Submits the guardrail check on-chain for this workflow's fixed recipient(s), with the given amount. The chain enforces the spend cap and allowlist independently of anything you decide here — for an explicit multi-recipient transfer, the harness ignores this amount in favor of the pre-configured total anyway.",
     input_schema: {
       type: 'object',
       properties: {
@@ -79,7 +89,7 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'submit_mock_settlement',
     description:
-      'Executes the final mock settlement on-chain, paying out to this workflow\'s fixed recipient. Only valid once fetch, compliance/approval, and guardrail have all already passed on-chain.',
+      "Executes the final mock settlement on-chain, paying out to this workflow's fixed recipient(s). Only valid once fetch, compliance/approval, and guardrail have all already passed on-chain.",
     input_schema: { type: 'object', properties: {} },
   },
 ];
@@ -87,8 +97,18 @@ export const TOOLS: Anthropic.Tool[] = [
 export function createToolExecutor(
   ctx: PolicyEngineContext,
   workflowId: anchor.BN,
-  recipient: PublicKey,
+  recipients: ToolRecipient[],
 ) {
+  // An explicit multi-recipient transfer (real wallet addresses entered by the operator, each
+  // with its own amount) vs. the legacy single-vendor stand-in path (amount comes from the
+  // model's own guardrail-check argument, driven by the invoice).
+  const isExplicit = recipients.length > 0 && recipients.every((r) => r.amountUsd !== undefined);
+  const primaryRecipient = recipients[0]?.pubkey;
+  if (!primaryRecipient) throw new Error('createToolExecutor: at least one recipient is required');
+  const explicitTotalUsd = isExplicit
+    ? recipients.reduce((sum, r) => sum + (r.amountUsd ?? 0), 0)
+    : undefined;
+
   return async function executeTool(name: string, input: Record<string, unknown>): Promise<unknown> {
     switch (name) {
       case 'get_invoice_data': {
@@ -114,24 +134,46 @@ export function createToolExecutor(
         return { signature, explorer: explorerLink(signature) };
       }
       case 'submit_guardrail_check': {
-        const signature = await submitGuardrailCheck(
-          ctx,
-          workflowId,
-          new anchor.BN(Number(input.amount)),
-          recipient,
-        );
+        // For an explicit transfer, every recipient must already be on the workflow's real
+        // on-chain allowlist (set at init time from the same recipient list) — the single-pubkey
+        // on-chain instruction can only check one of them, so the harness checks the rest itself
+        // before ever submitting, rather than silently trusting an unchecked destination.
+        if (isExplicit && recipients.length > 1) {
+          const pdas = deriveWorkflowPdas(ctx.program.programId, ctx.owner.publicKey, workflowId);
+          const workflow = await getWorkflow(ctx, pdas.workflow);
+          const allowlist = (workflow.allowlist as PublicKey[]).map((p) => p.toBase58());
+          const notAllowlisted = recipients.find((r) => !allowlist.includes(r.pubkey.toBase58()));
+          if (notAllowlisted) {
+            return { error: `Recipient ${notAllowlisted.pubkey.toBase58()} is not on this workflow's on-chain allowlist` };
+          }
+        }
+        const amount = isExplicit ? new anchor.BN(Math.round(explicitTotalUsd!)) : new anchor.BN(Number(input.amount));
+        const signature = await submitGuardrailCheck(ctx, workflowId, amount, primaryRecipient);
         return { signature, explorer: explorerLink(signature) };
       }
       case 'submit_mock_settlement': {
-        // Real fund movement happens here — a Pyth-priced 85/10/5 split across vendor (paid via
-        // real x402 rails), tax-reserve, and yield-pool — before mock_settlement attests to it.
-        // The harness does this, never the model.
         const pdas = deriveWorkflowPdas(ctx.program.programId, ctx.owner.publicKey, workflowId);
         const workflow = await getWorkflow(ctx, pdas.workflow);
+
+        if (isExplicit) {
+          // Real fund movement: a plain SPL transfer straight to each real recipient wallet —
+          // no vendor invoice, no tax/yield skim. The harness does this, never the model.
+          const { evidence, onChainReference } = await executeDirectTransfer(
+            workflowId.toString(),
+            recipients.map((r) => ({ pubkey: r.pubkey, amountUsd: r.amountUsd! })),
+          );
+          const signature = await submitMockSettlement(ctx, workflowId, onChainReference);
+          const receipt = await mintReceipt(ctx.owner.secretKey, workflowId.toString(), evidence);
+          await notifyOwner(buildReceiptNotification(workflowId.toString(), receipt));
+          return { signature, evidence, receipt, explorer: explorerLink(signature) };
+        }
+
+        // Legacy path — a Pyth-priced 85/10/5 split across vendor (paid via real x402 rails),
+        // tax-reserve, and yield-pool — before mock_settlement attests to it.
         const { evidence, onChainReference } = await executeSplitSettlement(
           workflowId.toString(),
           workflow.pendingAmount.toNumber(),
-          recipient,
+          primaryRecipient,
         );
         const signature = await submitMockSettlement(ctx, workflowId, onChainReference);
         const receipt = await mintReceipt(ctx.owner.secretKey, workflowId.toString(), evidence);
