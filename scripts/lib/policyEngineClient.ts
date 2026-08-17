@@ -7,6 +7,7 @@
 import * as anchor from '@anchor-lang/core';
 import { Program, AnchorProvider, Wallet } from '@anchor-lang/core';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -206,6 +207,41 @@ export async function submitMockSettlement(
       attestation: pdas.attestationPda(workflow.currentStep),
       ledger: pdas.ledger,
     })
+    .rpc();
+}
+
+/** Real fund movement happens inside this single instruction — a `transfer_checked` CPI per
+ * recipient, executed by the on-chain program itself (see
+ * programs/ashlar/src/instructions/settle_direct_transfer.rs), atomic with the settlement
+ * attestation. `recipientAtas` and `amounts` must be the same length and in the same order;
+ * every recipient token account's owner is checked against `workflow.allowlist` inside the
+ * program, not just trusted from the caller. */
+export async function submitDirectTransferSettlement(
+  ctx: PolicyEngineContext,
+  workflowId: anchor.BN,
+  args: {
+    mint: PublicKey;
+    ownerTokenAccount: PublicKey;
+    recipientAtas: PublicKey[];
+    amounts: anchor.BN[];
+    decimals: number;
+    settlementReference: string;
+  },
+): Promise<string> {
+  const pdas = deriveWorkflowPdas(ctx.program.programId, ctx.owner.publicKey, workflowId);
+  const workflow = await ctx.program.account.workflowInstance.fetch(pdas.workflow);
+  return ctx.program.methods
+    .settleDirectTransfer(workflowId, args.amounts, args.decimals, args.settlementReference)
+    .accountsPartial({
+      owner: ctx.owner.publicKey,
+      workflow: pdas.workflow,
+      attestation: pdas.attestationPda(workflow.currentStep),
+      ledger: pdas.ledger,
+      mint: args.mint,
+      ownerTokenAccount: args.ownerTokenAccount,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .remainingAccounts(args.recipientAtas.map((pubkey) => ({ pubkey, isWritable: true, isSigner: false })))
     .rpc();
 }
 
