@@ -28,12 +28,16 @@ pub struct MockSettlement<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Records that settlement happened — it does not move funds itself. Real custody now lives in
-/// a Squads multisig vault (Phase 4), which only the Squads program can sign for; the actual
-/// transfer is executed off-chain via Squads' propose/approve/execute flow (see
-/// scripts/lib/squadsClient.ts) *before* this instruction is called. `settlement_reference` (the
-/// Squads execution tx signature) is hashed into this step's Attestation as evidence, the same
-/// way every other step's instruction-specific data already is.
+/// Records that settlement happened — it does not move funds itself. The actual transfer is
+/// executed off-chain, signed by the business-owner wallet, *before* this instruction is called:
+/// either a Pyth-priced 85/10/5 vendor/tax-reserve/yield-pool split paid via real x402 rails (see
+/// scripts/lib/splitSettlement.ts), or a direct SPL transfer to one or more explicit recipient
+/// wallets for a real-address / group transfer (see scripts/lib/directTransfer.ts). Phase 4's
+/// Squads-multisig-held treasury was superseded by this business-owner-signed path — x402
+/// payments need a directly-signable payer, which a multisig can't be without deeper Squads
+/// integration than this project's scope (see agent/README.md). `settlement_reference` (a JSON
+/// blob summarizing the settlement, hashed for evidence) is hashed into this step's Attestation,
+/// the same way every other step's instruction-specific data already is.
 pub fn handle_mock_settlement(
     ctx: Context<MockSettlement>,
     _workflow_id: u64,
