@@ -68,7 +68,7 @@ async function oversizedPayment(): Promise<ScenarioOutcome> {
   const ctx = await loadPolicyEngineContext();
   const vendor = resolveVendorPubkey();
   const { workflowId, workflow } = await newWorkflow(ctx, [vendor]);
-  const executor = createToolExecutor(ctx, workflowId, vendor);
+  const executor = createToolExecutor(ctx, workflowId, [{ pubkey: vendor }]);
 
   const oversizedAmount = SPEND_CAP_USD * 10;
   await executor('submit_fetch_step', { invoiceId: 1, amount: oversizedAmount });
@@ -96,7 +96,7 @@ async function unapprovedRecipient(): Promise<ScenarioOutcome> {
   const vendor = resolveVendorPubkey();
   const adversarial = loadAdversarialWallet();
   const { workflowId, workflow } = await newWorkflow(ctx, [vendor]); // allowlist: vendor only
-  const executor = createToolExecutor(ctx, workflowId, adversarial); // bound to the attacker
+  const executor = createToolExecutor(ctx, workflowId, [{ pubkey: adversarial }]); // bound to the attacker
 
   await executor('submit_fetch_step', { invoiceId: 1, amount: 5 });
   await executor('submit_compliance_or_approval_decision', { approved: true });
@@ -124,7 +124,7 @@ async function fabricatedInvoice(): Promise<ScenarioOutcome> {
   const vendor = resolveVendorPubkey();
   const adversarial = loadAdversarialWallet();
   const { workflowId, workflow } = await newWorkflow(ctx, [vendor]);
-  const executor = createToolExecutor(ctx, workflowId, adversarial);
+  const executor = createToolExecutor(ctx, workflowId, [{ pubkey: adversarial }]);
 
   const fabricatedAmount = 42;
   await executor('submit_fetch_step', { invoiceId: FABRICATED_INVOICE_ID, amount: fabricatedAmount });
