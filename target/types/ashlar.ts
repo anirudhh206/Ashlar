@@ -758,6 +758,128 @@ export type Ashlar = {
           "type": "bool"
         }
       ]
+    },
+    {
+      "name": "settleDirectTransfer",
+      "docs": [
+        "Real fund movement, on-chain: pays 1–4 recipients directly via an SPL `transfer_checked`",
+        "CPI per leg, atomically with the settlement attestation. See",
+        "instructions/settle_direct_transfer.rs's doc comment for the full design rationale."
+      ],
+      "discriminator": [
+        81,
+        162,
+        184,
+        9,
+        162,
+        193,
+        154,
+        61
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "workflow"
+          ]
+        },
+        {
+          "name": "workflow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  111,
+                  114,
+                  107,
+                  102,
+                  108,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "workflowId"
+              }
+            ]
+          }
+        },
+        {
+          "name": "attestation",
+          "writable": true
+        },
+        {
+          "name": "ledger",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  100,
+                  103,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "workflow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "ownerTokenAccount",
+          "docs": [
+            "otherwise, since `owner` is the required signing authority for every leg."
+          ],
+          "writable": true
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "workflowId",
+          "type": "u64"
+        },
+        {
+          "name": "amounts",
+          "type": {
+            "vec": "u64"
+          }
+        },
+        {
+          "name": "decimals",
+          "type": "u8"
+        },
+        {
+          "name": "settlementReference",
+          "type": "string"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -844,6 +966,26 @@ export type Ashlar = {
       "code": 6005,
       "name": "notPendingOverride",
       "msg": "Workflow is not paused awaiting an owner override"
+    },
+    {
+      "code": 6006,
+      "name": "invalidRecipientCount",
+      "msg": "Recipient count must be between 1 and 4, and must match the amounts provided"
+    },
+    {
+      "code": 6007,
+      "name": "recipientNotAllowlisted",
+      "msg": "A recipient's token account is not owned by a wallet on this workflow's allowlist"
+    },
+    {
+      "code": 6008,
+      "name": "invalidMint",
+      "msg": "A recipient's token account is for the wrong mint"
+    },
+    {
+      "code": 6009,
+      "name": "amountOverflow",
+      "msg": "Total settlement amount overflowed u64"
     }
   ],
   "types": [
